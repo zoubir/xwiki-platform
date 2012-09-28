@@ -253,7 +253,7 @@ public class ImageWizard extends Wizard implements WizardStepProvider
 
         ResourceReference destination = new ResourceReference();
         destination.setEntityReference(origin.getEntityReference().clone());
-        destination.setType(ResourceType.ATTACHMENT);
+        destination.setType(ResourceType.URL);
         destination.setTyped(false);
 
         super.start(startStep,
