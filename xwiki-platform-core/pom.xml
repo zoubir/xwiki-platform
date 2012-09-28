@@ -249,6 +249,8 @@
           <excludes>
             <exclude>**/internal/**</exclude>
             <exclude>**/test/**</exclude>
+            <!-- Modified constructor signature to make it usable in standalone mode -->
+            <exclude>org/xwiki/gwt/wysiwyg/client/plugin/macro/exec/RefreshExecutable</exclude>
           </excludes>
         </configuration>
       </plugin>

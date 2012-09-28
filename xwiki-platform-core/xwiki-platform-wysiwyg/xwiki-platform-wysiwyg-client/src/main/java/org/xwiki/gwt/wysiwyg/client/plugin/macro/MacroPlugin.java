@@ -21,7 +21,6 @@ package org.xwiki.gwt.wysiwyg.client.plugin.macro;
 
 import org.xwiki.gwt.user.client.Config;
 import org.xwiki.gwt.user.client.ShortcutKeyManager;
-import org.xwiki.gwt.user.client.StringUtils;
 import org.xwiki.gwt.user.client.ui.rta.RichTextArea;
 import org.xwiki.gwt.user.client.ui.rta.cmd.Command;
 import org.xwiki.gwt.wysiwyg.client.plugin.internal.AbstractPlugin;
@@ -124,10 +123,7 @@ public class MacroPlugin extends AbstractPlugin
         selector = new MacroSelector(displayer);
         wizard = new MacroWizard(displayer, config, macroService);
 
-        String templateURL = config.getParameter("inputURL");
-        if (!StringUtils.isEmpty(templateURL)) {
-            getTextArea().getCommandManager().registerCommand(REFRESH, new RefreshExecutable(textArea, templateURL));
-        }
+        getTextArea().getCommandManager().registerCommand(REFRESH, new RefreshExecutable(textArea, config));
         getTextArea().getCommandManager().registerCommand(COLLAPSE, new CollapseExecutable(selector, true));
         getTextArea().getCommandManager().registerCommand(EXPAND, new CollapseExecutable(selector, false));
         getTextArea().getCommandManager().registerCommand(INSERT, new InsertExecutable(selector, macroService, config));
