@@ -1,0 +1,169 @@
+<!--
+ *
+ * See the NOTICE file distributed with this work for additional
+ * information regarding copyright ownership.
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+ *
+-->
+
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>org.xwiki.platform</groupId>
+    <artifactId>xwiki-platform-wysiwyg</artifactId>
+    <version>4.3-SNAPSHOT</version>
+  </parent>
+  <artifactId>xwiki-platform-wysiwyg-standalone</artifactId>
+  <name>XWiki Platform - WYSIWYG Editor - Standalone</name>
+  <packaging>war</packaging>
+  <description>A demo of how XWiki's WYSIWYG editor can be reused outside XWiki.</description>
+  <dependencies>
+    <dependency>
+      <!-- Required by XWikiRemoteServiceServlet initialization -->
+      <groupId>javax.servlet</groupId>
+      <artifactId>servlet-api</artifactId>
+    </dependency>
+    <dependency>
+      <!-- Required by XWikiRemoteServiceServlet -->
+      <groupId>com.google.gwt</groupId>
+      <artifactId>gwt-servlet</artifactId>
+    </dependency>
+    <dependency>
+      <!-- Used by XWikiRemoteServiceServlet to lookup GWT service components -->
+      <groupId>org.xwiki.commons</groupId>
+      <artifactId>xwiki-commons-component-default</artifactId>
+      <version>${commons.version}</version>
+    </dependency>
+    <dependency>
+      <!-- Provides both the client side and the server side of the WYSIWYG Editor -->
+      <groupId>org.xwiki.platform</groupId>
+      <artifactId>xwiki-platform-wysiwyg-war</artifactId>
+      <version>${project.version}</version>
+      <type>war</type>
+    </dependency>
+    <dependency>
+      <!-- Used to parse the HTML produced by the WYSIWYG Editor. This is required if you activate the Source tab of the
+      WYSIWYG editor. -->
+      <groupId>org.xwiki.rendering</groupId>
+      <artifactId>xwiki-rendering-syntax-xhtml</artifactId>
+      <version>${rendering.version}</version>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <!-- The syntax used to store the edited content (you can use a different one). A syntax like this is required in
+      order to activate the Source tab of the WYSIWYG editor. -->
+      <groupId>org.xwiki.rendering</groupId>
+      <artifactId>xwiki-rendering-syntax-xwiki21</artifactId>
+      <version>${rendering.version}</version>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <!-- Whatever syntax you choose to use, the HTML produced by the WYSIWYG editor needs to be cleaned up before
+      conversion. This is required only if you activate the Source tab of the WYSIWYG editor. -->
+      <groupId>org.xwiki.commons</groupId>
+      <artifactId>xwiki-commons-xml</artifactId>
+      <version>${commons.version}</version>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <!-- Used by some HTML cleaning filters. This is required only if you activate the Source tab of the WYSIWYG editor. -->
+      <groupId>xalan</groupId>
+      <artifactId>xalan</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <!-- Macro transformations are executed when the HTML produced by the WYSIWYG editor is converted to the source
+      syntax. This is required only if you activate the Source tab of the WYSIWYG editor. -->
+      <groupId>org.xwiki.rendering</groupId>
+      <artifactId>xwiki-rendering-transformation-macro</artifactId>
+      <version>${rendering.version}</version>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <!-- Needed to overwrite the XWiki specific implementation of MacroDescriptorTranslator -->
+      <groupId>org.xwiki.platform</groupId>
+      <artifactId>xwiki-platform-wysiwyg-server</artifactId>
+      <version>${project.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <!-- Needed to overwrite the XWiki specific implementation of MacroDescriptorTranslator -->
+      <groupId>org.xwiki.platform</groupId>
+      <artifactId>xwiki-platform-wysiwyg-client</artifactId>
+      <version>${project.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <!-- Used to overwrite the link service. -->
+      <groupId>org.xwiki.rendering</groupId>
+      <artifactId>xwiki-rendering-api</artifactId>
+      <version>${rendering.version}</version>
+    </dependency>
+    <dependency>
+      <!-- Just a macro example. -->
+      <groupId>org.xwiki.rendering</groupId>
+      <artifactId>xwiki-rendering-macro-toc</artifactId>
+      <version>${rendering.version}</version>
+      <scope>runtime</scope>
+    </dependency>
+  </dependencies>
+  <build>
+    <plugins>
+      <!-- Extract SmartClient library from SmartGWT. SmartClient is required only by the XWiki Explorer tree which is
+      used by the link plugin. Unfortunately, we need to include the SmartClient library even if the link plugin is not
+      loaded because SmartGWT declares an Entry Point which is executed when GWT is initialized. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>unpack-dependencies</id>
+            <phase>prepare-package</phase>
+            <goals>
+              <goal>unpack</goal>
+            </goals>
+            <configuration>
+              <artifactItems>
+                <artifactItem>
+                  <groupId>com.smartgwt</groupId>
+                  <artifactId>smartgwt</artifactId>
+                  <version>${smartgwt.version}</version>
+                  <type>jar</type>
+                  <outputDirectory>${project.build.directory}/smartclient</outputDirectory>
+                </artifactItem>
+              </artifactItems>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-war-plugin</artifactId>
+        <configuration>
+          <webResources>
+            <!-- Add SmartClient library -->
+            <resource>
+              <directory>${project.build.directory}/smartclient/com/smartclient/public/sc</directory>
+              <targetPath>sc</targetPath>
+              <filtering>false</filtering>
+            </resource>
+          </webResources>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

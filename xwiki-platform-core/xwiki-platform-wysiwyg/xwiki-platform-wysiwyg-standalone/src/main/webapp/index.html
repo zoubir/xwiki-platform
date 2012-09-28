@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="gwt:property" content="locale=en" />
+  <title>WYSIWYG Editor Demo</title>
+  <!-- The SmartClient library is required by the XWiki Explorer tree which is used by the link plugin. Unfortunately, it
+  needs to be loaded even if the link plugin is not used because SmartGWT declares an Entry point which is called when
+  GWT is initialized. -->
+  <script type="text/javascript" src="sc/initsc.js"></script>
+  <script type="text/javascript" src="sc/modules/ISC_Core.js"></script>
+  <script type="text/javascript" src="sc/modules/ISC_Foundation.js"></script>
+  <script type="text/javascript" src="sc/modules/ISC_Containers.js"></script>
+  <script type="text/javascript" src="sc/modules/ISC_Grids.js"></script>
+  <script type="text/javascript" src="sc/modules/ISC_Forms.js"></script>
+  <script type="text/javascript" src="sc/modules/ISC_DataBinding.js"></script>
+  <script type="text/javascript" src="resources/js/xwiki/wysiwyg/xwe/xwe.nocache.js"></script>
+  <script type="text/javascript">
+    var editor;
+
+    var createEditor = function() {
+      editor = new WysiwygEditor({
+        hookId: 'content',
+        syntax: 'xwiki\/2.1',
+        displayTabs: true,
+        defaultEditor: 'wysiwyg',
+        plugins: 'submit readonly line separator embed text valign list indent history format symbol link image table macro import color justify font',
+        menu: '[{\"feature\": \"link\", \"subMenu\":[\"linkEdit\", \"linkRemove\", \"linkWebPage\", \"linkEmail\"]}, {\"feature\":\"image\", \"subMenu\":[\"imageInsertURL\", \"imageEdit\", \"imageRemove\"]}, {\"feature\":\"table\", \"subMenu\":[\"inserttable\", \"insertcolbefore\", \"insertcolafter\", \"deletecol\", \"|\", \"insertrowbefore\", \"insertrowafter\", \"deleterow\", \"|\", \"deletetable\"]}, {\"feature\":\"macro\", \"subMenu\":[\"macroInsert\", \"macroEdit\", \"|\", \"macroRefresh\", \"|\", \"macroCollapse\", \"macroExpand\"]}]',
+        toolbar: 'bold italic underline strikethrough teletype | subscript superscript | justifyleft justifycenter justifyright justifyfull | unorderedlist orderedlist | outdent indent | undo redo | format | fontname fontsize forecolor backcolor | hr removeformat symbol | paste | macro:toc'
+      });
+
+      // Inject the style sheet after the editor is loaded.
+      editor.addActionHandler('loaded', function() {
+        var editedDocument = editor.getRichTextArea().contentWindow.document;
+        var head = editedDocument.getElementsByTagName('head')[0];
+        var link = editedDocument.createElement('link');
+        link.href = 'resources/js/xwiki/wysiwyg/xwe/stylesheets/RichTextArea.css';
+        link.rel = 'stylesheet';
+        link.type = 'text/css';
+        link.media = 'all';
+        head.appendChild(link);
+      });
+    }
+
+    var addSaveBehaviour = function() {
+      var output = document.getElementById('output');
+      var content = document.getElementById('content');
+      var actionButton = document.getElementById('actionButton');
+      actionButton.disabled = false;
+      actionButton.addEventListener('click', function() {
+        if (editor) {
+          editor.release();
+          editor = undefined;
+          content.parentNode.removeChild(content.previousSibling);
+          output.innerHTML = content.value;
+          actionButton.value = 'Edit';
+        } else {
+          output.innerHTML = '';
+          content.style.display = 'inline';
+          createEditor();
+          actionButton.value = 'Save';
+        }
+      }, true);
+    }
+
+    document.addEventListener('load', function() {
+      document.removeEventListener('load', arguments.callee, true);
+      var tryCounter = 10;
+      (function() {
+        // The load event is sometimes fired before the external JavaScript code is fully evaluated.
+        if (typeof WysiwygEditor != 'undefined') {
+          createEditor();
+          addSaveBehaviour();
+        } else if (tryCounter-- > 0) {
+          setTimeout(arguments.callee, 100);
+        }
+      })();
+    }, true);
+  </script>
+</head>
+<body>
+  <div>
+    <textarea id="content" rows="25" cols="60">
+      &lt;h1&gt;Title&lt;/h1&gt;
+      &lt;p&gt;This &lt;strong>is&lt;/strong&gt; a &lt;em&gt;paragraph&lt;/em&gt;&lt;/p&gt;
+      &lt;h2&gt;Sub title&lt;/h2&gt;
+      &lt;p&gt;This is a &lt;a href="http://www.xwiki.org"&gt;link&lt;/a&gt; and an image &lt;img src="http://www.xwiki.org/xwiki/bin/download/Main/Logo/logo%2Dx.png" alt="XWiki Logo" /&gt;&lt;/p&gt;
+      &lt;ul&gt;
+        &lt;li&gt;one&lt;/li&gt;
+        &lt;li&gt;two&lt;/li&gt;
+        &lt;li&gt;three&lt;/li&gt;
+      &lt;/ul&gt;
+      &lt;table&gt;
+        &lt;thead&gt;
+          &lt;tr&gt;
+            &lt;th&gt;Name&lt;/th>&lt;th>Age&lt;/th&gt;
+          &lt;/tr&gt;
+        &lt;/thead&gt;
+        &lt;tbody&gt;
+          &lt;tr&gt;
+            &lt;td&gt;Marius&lt;/td&gt;&lt;td&gt;28&lt;/td&gt;
+          &lt;/tr&gt;
+        &lt;/tbody&gt;
+      &lt;/table&gt;
+    </textarea>
+  </div>
+  <div id="output"></div>
+  <p><input id="actionButton" type="button" disabled="disabled" value="Save" /></p>
+</body>
+</html>
