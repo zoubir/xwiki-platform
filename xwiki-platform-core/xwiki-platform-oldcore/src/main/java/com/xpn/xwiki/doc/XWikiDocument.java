@@ -5908,6 +5908,7 @@ public class XWikiDocument implements DocumentModelBridge
                 String saveMessage =
                     context.getMessageTool().get("core.comment.renameParent",
                         Arrays.asList(this.compactEntityReferenceSerializer.serialize(newDocumentReference)));
+                childDocument.setAuthorReference(context.getUserReference());
                 xwiki.saveDocument(childDocument, saveMessage, true, context);
             }
         }
@@ -5947,6 +5948,7 @@ public class XWikiDocument implements DocumentModelBridge
             String saveMessage =
                 context.getMessageTool().get("core.comment.renameLink",
                     Arrays.asList(this.compactEntityReferenceSerializer.serialize(newDocumentReference)));
+            backlinkDocument.setAuthorReference(context.getUserReference());
             xwiki.saveDocument(backlinkDocument, saveMessage, true, context);
         }
 
@@ -5982,6 +5984,7 @@ public class XWikiDocument implements DocumentModelBridge
             // Set new content and save document if needed
             if (modified) {
                 newDocument.setContent(newDocumentXDOM);
+                newDocument.setAuthorReference(context.getUserReference());
                 xwiki.saveDocument(newDocument, context);
             }
         }
