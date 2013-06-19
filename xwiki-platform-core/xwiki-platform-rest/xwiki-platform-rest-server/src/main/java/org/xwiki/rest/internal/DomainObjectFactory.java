@@ -702,7 +702,7 @@ public class DomainObjectFactory
                     }
 
                     Attribute attribute = objectFactory.createAttribute();
-                    attribute.setName(Constants.ALLOWED_VALUES_ATTRIBUTE_NAME);
+                    attribute.setName(InternalConstants.ALLOWED_VALUES_ATTRIBUTE_NAME);
                     attribute.setValue(f.toString());
                     property.getAttributes().add(attribute);
                 }

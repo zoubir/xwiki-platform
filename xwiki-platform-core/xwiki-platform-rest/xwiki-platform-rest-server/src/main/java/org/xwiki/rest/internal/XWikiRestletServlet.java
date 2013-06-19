@@ -29,7 +29,7 @@ import org.restlet.Application;
 import org.restlet.Context;
 import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.component.manager.ComponentManager;
-import org.xwiki.rest.internal.Constants;
+import org.xwiki.rest.internal.InternalConstants;
 
 import org.restlet.ext.servlet.ServerServlet;
 
@@ -65,7 +65,7 @@ public class XWikiRestletServlet extends ServerServlet
 
         /* Retrieve the component manager and make it available in the restlet application context. */
         ComponentManager componentManager = getComponentManager(context);
-        applicationContext.getAttributes().put(Constants.XWIKI_COMPONENT_MANAGER, componentManager);
+        applicationContext.getAttributes().put(InternalConstants.XWIKI_COMPONENT_MANAGER, componentManager);
 
         /* Set the object factory for instantiating components. */
         if (application instanceof XWikiRestletJaxRsApplication) {

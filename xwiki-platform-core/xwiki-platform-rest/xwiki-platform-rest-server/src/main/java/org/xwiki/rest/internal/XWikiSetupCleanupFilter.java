@@ -33,6 +33,7 @@ import org.xwiki.component.manager.ComponentLifecycleException;
 import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.context.Execution;
 import org.xwiki.context.ExecutionContext;
+import org.xwiki.rest.Constants;
 import org.xwiki.rest.XWikiRestComponent;
 
 /**
@@ -68,7 +69,7 @@ public class XWikiSetupCleanupFilter extends Filter
         // Release all the JAX-RS resources that are implemented as components with per-lookup policy and that have been
         // instantiated during this request.
         ComponentManager componentManager =
-            (ComponentManager) getApplication().getContext().getAttributes().get(Constants.XWIKI_COMPONENT_MANAGER);
+            (ComponentManager) getApplication().getContext().getAttributes().get(InternalConstants.XWIKI_COMPONENT_MANAGER);
         for (XWikiRestComponent component : getReleasableComponents(componentManager)) {
             try {
                 componentManager.release(component);
@@ -97,7 +98,7 @@ public class XWikiSetupCleanupFilter extends Filter
             ExecutionContext executionContext = componentManager.<Execution> getInstance(Execution.class).getContext();
             @SuppressWarnings("unchecked")
             List<XWikiRestComponent> releasableComponents =
-                (List<XWikiRestComponent>) executionContext.getProperty(Constants.RELEASABLE_COMPONENT_REFERENCES);
+                (List<XWikiRestComponent>) executionContext.getProperty(InternalConstants.RELEASABLE_COMPONENT_REFERENCES);
             return releasableComponents != null ? releasableComponents : Collections.<XWikiRestComponent> emptyList();
         } catch (Exception e) {
             getLogger().log(Level.WARNING, "Failed to retrieve the list of releasable components.", e);

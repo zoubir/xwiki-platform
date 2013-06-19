@@ -38,7 +38,6 @@ import com.xpn.xwiki.XWikiException;
  */
 public class XWikiSecretVerifier extends SecretVerifier
 {
-
     /**
      * XWiki component manager. Used to access legacy XWiki context.
      */
@@ -62,7 +61,7 @@ public class XWikiSecretVerifier extends SecretVerifier
     }
 
     @Override
-    public boolean verify(String identifier, char[] secret) throws IllegalArgumentException
+    public int verify(String identifier, char[] secret) throws IllegalArgumentException
     {
         XWikiContext xwikiContext = Utils.getXWikiContext(this.componentManager);
         XWiki xwiki = Utils.getXWiki(this.componentManager);
@@ -76,7 +75,7 @@ public class XWikiSecretVerifier extends SecretVerifier
 
                 this.context.getLogger().log(Level.FINE, String.format("Authenticated as '%s'.", identifier));
 
-                return true;
+                return RESULT_VALID;
             }
         } catch (XWikiException e) {
             this.context.getLogger().log(Level.WARNING, "Exception occurred while authenticating.", e);
@@ -84,7 +83,7 @@ public class XWikiSecretVerifier extends SecretVerifier
 
         this.context.getLogger().log(Level.WARNING, String.format("Cannot authenticate '%s'.", identifier));
 
-        return false;
+        return RESULT_INVALID;
     }
 
 }

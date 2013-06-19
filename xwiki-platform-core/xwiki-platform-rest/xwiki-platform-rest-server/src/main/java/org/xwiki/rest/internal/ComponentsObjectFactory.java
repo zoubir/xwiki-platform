@@ -30,7 +30,7 @@ import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.context.Execution;
 import org.xwiki.context.ExecutionContext;
-import org.xwiki.rest.internal.Constants;
+import org.xwiki.rest.internal.InternalConstants;
 import org.xwiki.rest.XWikiRestComponent;
 
 /**
@@ -75,10 +75,10 @@ public class ComponentsObjectFactory implements ObjectFactory
             // instances that need to be released at the end of the request.
             ExecutionContext executionContext = componentManager.<Execution> getInstance(Execution.class).getContext();
             List<XWikiRestComponent> releasableComponentReferences =
-                (List<XWikiRestComponent>) executionContext.getProperty(Constants.RELEASABLE_COMPONENT_REFERENCES);
+                (List<XWikiRestComponent>) executionContext.getProperty(InternalConstants.RELEASABLE_COMPONENT_REFERENCES);
             if (releasableComponentReferences == null) {
                 releasableComponentReferences = new ArrayList<XWikiRestComponent>();
-                executionContext.setProperty(Constants.RELEASABLE_COMPONENT_REFERENCES, releasableComponentReferences);
+                executionContext.setProperty(InternalConstants.RELEASABLE_COMPONENT_REFERENCES, releasableComponentReferences);
             }
 
             // Only add the components that have a per-lookup instantiation strategy.

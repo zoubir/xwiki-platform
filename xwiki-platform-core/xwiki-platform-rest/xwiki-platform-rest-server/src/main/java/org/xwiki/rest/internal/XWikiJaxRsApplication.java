@@ -30,7 +30,7 @@ import javax.ws.rs.core.Application;
 import org.restlet.Context;
 import org.xwiki.component.descriptor.ComponentDescriptor;
 import org.xwiki.component.manager.ComponentManager;
-import org.xwiki.rest.internal.Constants;
+import org.xwiki.rest.internal.InternalConstants;
 import org.xwiki.rest.XWikiRestComponent;
 
 /**
@@ -59,7 +59,7 @@ public class XWikiJaxRsApplication extends Application
         this.jaxRsClasses = new HashSet<Class< ? >>();
 
         ComponentManager componentManager =
-            (ComponentManager) context.getAttributes().get(Constants.XWIKI_COMPONENT_MANAGER);
+            (ComponentManager) context.getAttributes().get(InternalConstants.XWIKI_COMPONENT_MANAGER);
 
         /* Look up all the component that are marked as XWikiRestComponent. */
         List<ComponentDescriptor<XWikiRestComponent>> cds =
