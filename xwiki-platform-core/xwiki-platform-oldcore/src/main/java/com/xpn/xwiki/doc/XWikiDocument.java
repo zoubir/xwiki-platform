@@ -6090,7 +6090,7 @@ public class XWikiDocument implements DocumentModelBridge
         newdoc.setContentDirty(true);
         newdoc.getXClass().setDocumentReference(newDocumentReference);
 
-        XWikiDocumentArchive archive = newdoc.getDocumentArchive();
+        XWikiDocumentArchive archive = getDocumentArchive();
         if (archive != null) {
             newdoc.setDocumentArchive(archive.clone(newdoc.getId(), context));
         }
