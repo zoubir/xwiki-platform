@@ -23,7 +23,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.apache.commons.lang3.StringUtils;
+import org.xwiki.localization.LocaleUtils;
 import org.xwiki.localization.Translation;
 
 /**
@@ -65,39 +65,12 @@ public abstract class AbstractCachedTranslationBundle extends AbstractTranslatio
     }
 
     /**
-     * @param locale the locale
-     * @return the parent locale
-     */
-    private Locale getParentLocale(Locale locale)
-    {
-        String language = locale.getLanguage();
-        String country = locale.getCountry();
-        String variant = locale.getVariant();
-
-        if (StringUtils.isEmpty(language)) {
-            return null;
-        }
-
-        if (StringUtils.isEmpty(country)) {
-            return Locale.ROOT;
-        }
-
-        if (StringUtils.isEmpty(variant)) {
-            return new Locale(language);
-        }
-
-        return new Locale(language, country);
-    }
-
-    /**
      * @param locale the Locale
      * @return the bundle containing translation for the passed Locale
      */
     private LocalizedTranslationBundle getLocalizedBundle(Locale locale)
     {
-        String localeString = locale.toString();
-
-        LocalizedTranslationBundle bundle = this.bundleCache.get(localeString);
+        LocalizedTranslationBundle bundle = this.bundleCache.get(locale);
         if (bundle == null) {
             bundle = getSynchLocalizedBundle(locale);
         }
@@ -134,7 +107,7 @@ public abstract class AbstractCachedTranslationBundle extends AbstractTranslatio
         if (bundle != null) {
             translation = bundle.getTranslation(key);
             if (translation == null) {
-                Locale parentLocale = getParentLocale(locale);
+                Locale parentLocale = LocaleUtils.getParentLocale(locale);
                 if (parentLocale != null) {
                     translation = getTranslation(key, parentLocale);
                 }

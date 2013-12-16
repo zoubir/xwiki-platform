@@ -25,8 +25,10 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -41,21 +43,24 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.artifact.ArtifactUtils;
-import org.apache.maven.artifact.factory.ArtifactFactory;
-import org.apache.maven.artifact.metadata.ArtifactMetadataSource;
 import org.apache.maven.artifact.repository.ArtifactRepository;
+import org.apache.maven.artifact.resolver.ArtifactResolutionRequest;
 import org.apache.maven.artifact.resolver.ArtifactResolutionResult;
-import org.apache.maven.artifact.resolver.ArtifactResolver;
 import org.apache.maven.artifact.resolver.filter.AndArtifactFilter;
 import org.apache.maven.artifact.resolver.filter.ExcludesArtifactFilter;
 import org.apache.maven.artifact.resolver.filter.ScopeArtifactFilter;
 import org.apache.maven.model.Dependency;
+import org.apache.maven.model.building.ModelBuildingRequest;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
+import org.apache.maven.project.DefaultProjectBuildingRequest;
 import org.apache.maven.project.MavenProject;
-import org.apache.maven.project.MavenProjectBuilder;
+import org.apache.maven.project.ProjectBuilder;
 import org.apache.maven.project.ProjectBuildingException;
+import org.apache.maven.project.ProjectBuildingRequest;
+import org.apache.maven.project.ProjectBuildingResult;
+import org.apache.maven.repository.RepositorySystem;
 import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.Velocity;
 import org.apache.velocity.runtime.RuntimeConstants;
@@ -65,6 +70,7 @@ import org.codehaus.plexus.logging.console.ConsoleLogger;
 import org.codehaus.plexus.util.FileUtils;
 import org.codehaus.plexus.util.StringUtils;
 import org.hibernate.cfg.Environment;
+import org.sonatype.aether.RepositorySystemSession;
 import org.xwiki.velocity.internal.log.SLF4JLogChute;
 
 import com.xpn.xwiki.XWikiContext;
@@ -83,47 +89,6 @@ import com.xpn.xwiki.tool.backup.Importer;
  */
 public class PackageMojo extends AbstractMojo
 {
-    /**
-     * The maven project.
-     * 
-     * @parameter expression="${project}"
-     * @required
-     * @readonly
-     */
-    protected MavenProject project;
-
-    /**
-     * List of Remote Repositories used by the resolver.
-     * 
-     * @parameter expression="${project.remoteArtifactRepositories}"
-     * @readonly
-     * @required
-     */
-    protected List<ArtifactRepository> remoteRepos;
-
-    /**
-     * Project builder -- builds a model from a pom.xml.
-     * 
-     * @component role="org.apache.maven.project.MavenProjectBuilder"
-     * @required
-     * @readonly
-     */
-    protected MavenProjectBuilder mavenProjectBuilder;
-
-    /**
-     * Used to look up Artifacts in the remote repository.
-     * 
-     * @component
-     */
-    protected ArtifactFactory factory;
-
-    /**
-     * Used to look up Artifacts in the remote repository.
-     * 
-     * @component
-     */
-    protected ArtifactResolver resolver;
-
     /**
      * The directory where to create the packaging.
      * 
@@ -157,26 +122,66 @@ public class PackageMojo extends AbstractMojo
     private File databaseDirectory;
 
     /**
-     * Location of the local repository.
+     * The maven project.
      * 
-     * @parameter expression="${localRepository}"
-     * @readonly
+     * @parameter expression="${project}"
      * @required
+     * @readonly
      */
-    private ArtifactRepository local;
+    protected MavenProject project;
 
     /**
+     * Project builder -- builds a model from a pom.xml.
+     * 
+     * @component role="org.apache.maven.project.ProjectBuilder"
+     * @required
+     * @readonly
+     */
+    protected ProjectBuilder projectBuilder;
+
+    /**
+     * Used to look up Artifacts in the remote repository.
+     * 
      * @component
      */
-    private ArtifactMetadataSource metadataSource;
+    protected RepositorySystem repositorySystem;
 
     /**
-     * The user under which the import should be done. If not user is specified then we import with backup pack.
-     * For example {@code superadmin}.
-     *
+     * The current repository/network configuration of Maven.
+     * 
+     * @parameter default-value="${repositorySystemSession}"
+     * @readonly
+     */
+    private RepositorySystemSession repositorySystemSession;
+
+    /**
+     * Local repository to be used by the plugin to resolve dependencies.
+     * 
+     * @parameter expression="${localRepository}"
+     */
+    protected ArtifactRepository localRepository;
+
+    /**
+     * List of remote repositories to be used by the plugin to resolve dependencies.
+     * 
+     * @parameter expression="${project.remoteArtifactRepositories}"
+     */
+    protected List<ArtifactRepository> remoteRepositories;
+
+    /**
+     * The user under which the import should be done. If not user is specified then we import with backup pack. For
+     * example {@code superadmin}.
+     * 
      * @parameter
      */
     private String importUser;
+
+    /**
+     * The platform version to be used by the packager plugin.
+     * 
+     * @parameter expression="${platform.version}" default-value="${platform.version}"
+     */
+    private String platformVersion;
 
     /**
      * List of skin artifacts to include in the packaging.
@@ -185,9 +190,21 @@ public class PackageMojo extends AbstractMojo
      */
     private List<SkinArtifactItem> skinArtifactItems;
 
+    /**
+     * Maps each dependency of type WAR to a context path which will be used as the target directory when the WAR
+     * artifact is extracted. WARs that share the same context path are merged. The order of the WAR artifacts in the
+     * dependency list is important because the last one can overwrite files from the previous ones if they share the
+     * same context path.
+     * 
+     * @parameter
+     */
+    private Map<String, String> contextPathMapping;
+
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException
     {
+        getLog().info("Using platform version: " + getXWikiPlatformVersion());
+
         // Step 1: Expand Jetty resources into the package output directory.
         getLog().info("Expanding Jetty Resources ...");
         expandJettyDistribution();
@@ -195,9 +212,9 @@ public class PackageMojo extends AbstractMojo
         // Step 2: Get the WAR dependencies and expand them in the package output directory.
         getLog().info("Expanding WAR dependencies ...");
         File webappsDirectory = new File(this.outputPackageDirectory, "webapps");
-        for (Map.Entry<String, Artifact> warArtifactEntry : resolveWarArtifacts().entrySet()) {
-            getLog().info("  ... Unzipping WAR: " + warArtifactEntry.getValue().getFile());
-            unzip(warArtifactEntry.getValue().getFile(), new File(webappsDirectory, warArtifactEntry.getKey()));
+        for (Artifact warArtifact : resolveWarArtifacts()) {
+            getLog().info("  ... Unzipping WAR: " + warArtifact.getFile());
+            unzip(warArtifact.getFile(), new File(webappsDirectory, getContextPath(warArtifact)));
         }
 
         // Step 3: Copy all JARs dependencies to the expanded WAR directory in WEB-INF/lib
@@ -240,11 +257,22 @@ public class PackageMojo extends AbstractMojo
             }
         } else {
             Artifact colibriArtifact =
-                resolveArtifact("org.xwiki.platform", "xwiki-platform-colibri", this.project.getVersion(), "zip");
+                resolveArtifact("org.xwiki.platform", "xwiki-platform-colibri", getXWikiPlatformVersion(), "zip");
             unzip(colibriArtifact.getFile(), skinsDirectory);
         }
 
-        // Step 8: Import specified XAR files into the database
+        // Step 8: Extract SmartClient library from smartGWT to be used by the XWiki Explorer Tree.
+        getLog().info("Extracting SmartClient ...");
+        String smartGWTVersion = getDependencyManagementVersion(getTopLevelPOMProject(), "com.smartgwt", "smartgwt");
+        Artifact smartGWTArtifact = resolveArtifact("com.smartgwt", "smartgwt", smartGWTVersion, "jar");
+        File smartGWTOutputDirectory = new File(project.getBuild().getDirectory(), "smartgwt");
+        unzip(smartGWTArtifact.getFile(), smartGWTOutputDirectory);
+        File smartClientDirectory = new File(xwikiWebappDirectory, "resources/js/smartclient");
+        copyDirectory(new File(smartGWTOutputDirectory, "com/smartclient/public/sc"), smartClientDirectory);
+        copyDirectory(new File(smartGWTOutputDirectory, "com/smartclient/theme/enterprise/public/sc/skins"), new File(
+            smartClientDirectory, "skins"));
+
+        // Step 9: Import specified XAR files into the database
         getLog().info(
             String.format("Import XAR dependencies %s...", this.importUser == null ? "as a backup pack"
                 : "using user [" + this.importUser + "]"));
@@ -258,8 +286,9 @@ public class PackageMojo extends AbstractMojo
 
         // Replace maven properties in start shell scripts
         VelocityContext context = createVelocityContext();
-        Collection<File> startFiles = org.apache.commons.io.FileUtils.listFiles(this.outputPackageDirectory,
-            new WildcardFileFilter("start_xwiki*.*"), null);
+        Collection<File> startFiles =
+            org.apache.commons.io.FileUtils.listFiles(this.outputPackageDirectory, new WildcardFileFilter(
+                "start_xwiki*.*"), null);
 
         // Note: Init is done once even if this method is called several times...
         Velocity.setProperty(RuntimeConstants.RUNTIME_LOG_LOGSYSTEM, new SLF4JLogChute());
@@ -297,9 +326,9 @@ public class PackageMojo extends AbstractMojo
                     type = artifacts.get(key).getType();
                 }
             } else {
-                // Default to the project's version
+                // Default to the platform version
                 if (version == null) {
-                    version = this.project.getVersion();
+                    version = getXWikiPlatformVersion();
                 }
                 // Default to JAR
                 if (type == null) {
@@ -310,7 +339,8 @@ public class PackageMojo extends AbstractMojo
 
         // Resolve the artifact
         Artifact artifact =
-            this.factory.createArtifact(artifactItem.getGroupId(), artifactItem.getArtifactId(), version, "", type);
+            this.repositorySystem.createArtifact(artifactItem.getGroupId(), artifactItem.getArtifactId(), version, "",
+                type);
         resolveArtifact(artifact);
         return artifact;
     }
@@ -319,8 +349,8 @@ public class PackageMojo extends AbstractMojo
     {
         VelocityContext context = createVelocityContext();
         Artifact configurationResourcesArtifact =
-            this.factory.createArtifact("org.xwiki.platform", "xwiki-platform-tool-configuration-resources",
-                this.project.getVersion(), "", "jar");
+            this.repositorySystem.createArtifact("org.xwiki.platform", "xwiki-platform-tool-configuration-resources",
+                getXWikiPlatformVersion(), "", "jar");
         resolveArtifact(configurationResourcesArtifact);
 
         configurationFileTargetDirectory.mkdirs();
@@ -328,23 +358,27 @@ public class PackageMojo extends AbstractMojo
         try {
             JarInputStream jarInputStream =
                 new JarInputStream(new FileInputStream(configurationResourcesArtifact.getFile()));
-            JarEntry entry;
-            while ((entry = jarInputStream.getNextJarEntry()) != null) {
-                if (entry.getName().endsWith(".vm")) {
 
-                    String fileName = entry.getName().replace(".vm", "");
-                    File outputFile = new File(configurationFileTargetDirectory, fileName);
-                    OutputStreamWriter writer = new OutputStreamWriter(new FileOutputStream(outputFile));
-                    getLog().info("Writing config file: " + outputFile);
-                    // Note: Init is done once even if this method is called several times...
-                    Velocity.init();
-                    Velocity.evaluate(context, writer, "", IOUtils.toString(jarInputStream));
-                    writer.close();
-                    jarInputStream.closeEntry();
+            try {
+                JarEntry entry;
+                while ((entry = jarInputStream.getNextJarEntry()) != null) {
+                    if (entry.getName().endsWith(".vm")) {
+
+                        String fileName = entry.getName().replace(".vm", "");
+                        File outputFile = new File(configurationFileTargetDirectory, fileName);
+                        OutputStreamWriter writer = new OutputStreamWriter(new FileOutputStream(outputFile));
+                        getLog().info("Writing config file: " + outputFile);
+                        // Note: Init is done once even if this method is called several times...
+                        Velocity.init();
+                        Velocity.evaluate(context, writer, "", IOUtils.toString(jarInputStream));
+                        writer.close();
+                        jarInputStream.closeEntry();
+                    }
                 }
+            } finally {
+                // Flush and close all the streams
+                jarInputStream.close();
             }
-            // Flush and close all the streams
-            jarInputStream.close();
         } catch (Exception e) {
             throw new MojoExecutionException("Failed to extract configuration files", e);
         }
@@ -372,7 +406,9 @@ public class PackageMojo extends AbstractMojo
                 getLog().info("  ... Importing XAR file: " + xarArtifact.getFile());
 
                 try {
-                    importer.importXAR(xarArtifact.getFile(), this.importUser, xcontext);
+                    int nb = importer.importXAR(xarArtifact.getFile(), this.importUser, xcontext);
+
+                    getLog().info("  .... Imported " + nb + " documents");
                 } catch (Exception e) {
                     throw new MojoExecutionException(
                         String.format("Failed to import XAR [%s]", xarArtifact.toString()), e);
@@ -393,6 +429,12 @@ public class PackageMojo extends AbstractMojo
             // Copy database files to XWiki's data directory.
             File dataDir = new File(this.outputPackageDirectory, "data");
             copyDirectory(this.databaseDirectory, new File(dataDir, "database"));
+
+            try {
+                importer.disposeXWikiContext(xcontext);
+            } catch (Exception e) {
+                throw new MojoExecutionException("Failed to dispose XWiki context", e);
+            }
         }
     }
 
@@ -430,7 +472,7 @@ public class PackageMojo extends AbstractMojo
 
         // If the HSQLDB artifact wasn't defined, try to resolve the default HSQLDB JAR artifact
         if (hsqldbArtifact == null) {
-            hsqldbArtifact = this.factory.createArtifact("org.hsqldb", "hsqldb", "2.2.9", "", "jar");
+            hsqldbArtifact = this.repositorySystem.createArtifact("org.hsqldb", "hsqldb", "2.2.9", "", "jar");
         }
 
         if (hsqldbArtifact != null) {
@@ -461,8 +503,8 @@ public class PackageMojo extends AbstractMojo
         // If the Jetty artifact wasn't defined, try to resolve the default Jetty artifact
         if (jettyArtifact == null) {
             jettyArtifact =
-                this.factory.createArtifact("org.xwiki.platform", "xwiki-platform-tool-jetty-resources",
-                    this.project.getVersion(), "", "zip");
+                this.repositorySystem.createArtifact("org.xwiki.platform", "xwiki-platform-tool-jetty-resources",
+                    getXWikiPlatformVersion(), "", "zip");
         }
 
         if (jettyArtifact != null) {
@@ -475,159 +517,208 @@ public class PackageMojo extends AbstractMojo
         return jettyArtifact;
     }
 
-    private Map<String, Artifact> resolveWarArtifacts() throws MojoExecutionException
+    private Collection<Artifact> resolveWarArtifacts() throws MojoExecutionException
     {
-        Map<String, Artifact> warArtifacts = new HashMap<String, Artifact>();
+        List<Artifact> warArtifacts = new ArrayList<Artifact>();
 
-        Set<Artifact> artifacts = this.project.getArtifacts();
-        if (artifacts != null) {
-            for (Artifact artifact : artifacts) {
-                if (artifact.getType().equals("war")) {
-                    String id;
-                    if (artifact.getArtifactId().equals("xwiki-platform-web")) {
-                        id = "xwiki";
-                    } else if (artifact.getArtifactId().equals("xwiki-platform-tool-rootwebapp")) {
-                        id = "root";
-                    } else {
-                        id = artifact.getArtifactId();
-                    }
-                    warArtifacts.put(id, artifact);
-                    break;
-                }
+        // First look for dependencies of type WAR.
+        for (Artifact artifact : this.project.getArtifacts()) {
+            if (artifact.getType().equals("war")) {
+                warArtifacts.add(artifact);
             }
         }
 
-        // If the WAR artifacts weren't defined, try to resolve the default Web artifacts.
+        // If there are no WAR artifacts specified in the list of dependencies then use the default WAR artifacts.
         if (warArtifacts.isEmpty()) {
-            warArtifacts.put("xwiki", this.factory.createArtifact("org.xwiki.platform", "xwiki-platform-web",
-                this.project.getVersion(), "", "war"));
-            warArtifacts.put(
-                "root",
-                this.factory.createArtifact("org.xwiki.platform", "xwiki-platform-tool-rootwebapp",
-                    this.project.getVersion(), "", "war"));
+            warArtifacts.add(this.repositorySystem.createArtifact("org.xwiki.platform", "xwiki-platform-web",
+                getXWikiPlatformVersion(), "", "war"));
+            warArtifacts.add(this.repositorySystem.createArtifact("org.xwiki.platform",
+                "xwiki-platform-tool-rootwebapp", getXWikiPlatformVersion(), "", "war"));
         }
 
-        if (!warArtifacts.isEmpty()) {
-            for (Artifact warArtifact : warArtifacts.values()) {
-                resolveArtifact(warArtifact);
-            }
-        } else {
-            throw new MojoExecutionException("Failed to locate any XWiki WAR artifact in either the project "
-                + "dependency list or using the specific [xwiki-platform-web]/[xwiki-platform-tool-rootwebapp] "
-                + "artifact names");
+        for (Artifact warArtifact : warArtifacts) {
+            resolveArtifact(warArtifact);
         }
 
         return warArtifacts;
     }
 
+    private String getContextPath(Artifact warArtifact)
+    {
+        String contextPath = getContextPathMapping().get(warArtifact.getArtifactId());
+        if (contextPath == null) {
+            // Should we put this as default "contextPathMapping" configuration in a parent POM? (and rely on
+            // configuration merging)
+            if (warArtifact.getArtifactId().equals("xwiki-platform-web")) {
+                contextPath = "xwiki";
+            } else if (warArtifact.getArtifactId().equals("xwiki-platform-tool-rootwebapp")) {
+                contextPath = "root";
+            } else {
+                contextPath = warArtifact.getArtifactId();
+            }
+        }
+        return contextPath;
+    }
+
+    private Map<String, String> getContextPathMapping()
+    {
+        if (this.contextPathMapping == null) {
+            this.contextPathMapping = Collections.emptyMap();
+        }
+        return this.contextPathMapping;
+    }
+
     private Collection<Artifact> resolveJarArtifacts() throws MojoExecutionException
     {
-        Set<Artifact> jarArtifacts = new HashSet<Artifact>();
+        Set<Artifact> mys =
+            resolveTransitively(Collections.singleton(this.repositorySystem.createArtifact("org.xwiki.platform",
+                "xwiki-platform-chart-renderer", "5.0-SNAPSHOT", "jar")));
 
-        Set<Artifact> artifacts = this.project.getArtifacts();
-        if (artifacts != null) {
-            for (Artifact artifact : artifacts) {
-                if (artifact.getType().equals("jar")) {
-                    jarArtifacts.add(artifact);
-                    // Note that we don't need to resolve transitively since getArtifacts() above will already
-                    // contain all transitive dependencies.
-                    resolveArtifact(artifact);
-                }
+        Set<Artifact> artifactsToResolve = this.project.getArtifacts();
+
+        // Add mandatory dependencies if they're not explicitly specified.
+        artifactsToResolve.addAll(getMandatoryJarArtifacts());
+
+        // Resolve all artifacts transitively in one go.
+        Set<Artifact> resolvedArtifacts = resolveTransitively(artifactsToResolve);
+
+        // Remove the non JAR artifacts. Note that we need to include non JAR artifacts before the transitive resolve
+        // because for example some XARs mayb depend on JARs and we need those JARs to be packaged!
+        Set<Artifact> jarArtifacts = new HashSet<Artifact>();
+        for (Artifact artifact : resolvedArtifacts) {
+            // Note: test-jar is used in functional tests from time to time and we need to package them too.
+            if (artifact.getType().equals("jar") || artifact.getType().equals("test-jar")) {
+                jarArtifacts.add(artifact);
             }
         }
 
-        // Add mandatory dependencies if they're not explicitly specified.
-        jarArtifacts.addAll(getMandatoryJarArtifacts());
-
-        // Resolve all artifacts transitively in one go.
-        return resolveTransitively(jarArtifacts);
+        return jarArtifacts;
     }
 
     private Set<Artifact> getMandatoryJarArtifacts() throws MojoExecutionException
     {
         Set<Artifact> mandatoryTopLevelArtifacts = new HashSet<Artifact>();
 
-        mandatoryTopLevelArtifacts.add(this.factory.createArtifact("org.xwiki.platform", "xwiki-platform-oldcore",
-            this.project.getVersion(), null, "jar"));
+        mandatoryTopLevelArtifacts.add(this.repositorySystem.createArtifact("org.xwiki.platform",
+            "xwiki-platform-oldcore", getXWikiPlatformVersion(), null, "jar"));
 
         // Required Plugins
-        mandatoryTopLevelArtifacts.add(this.factory.createArtifact("org.xwiki.platform", "xwiki-platform-skin-skinx",
-            this.project.getVersion(), null, "jar"));
+        mandatoryTopLevelArtifacts.add(this.repositorySystem.createArtifact("org.xwiki.platform",
+            "xwiki-platform-skin-skinx", getXWikiPlatformVersion(), null, "jar"));
 
         // We shouldn't need those but right now it's mandatory since they are defined in the default web.xml file we
         // provide. We'll be able to remove them when we start using Servlet 3.0 -->
-        mandatoryTopLevelArtifacts.add(this.factory.createArtifact("org.xwiki.platform",
-            "xwiki-platform-wysiwyg-server", this.project.getVersion(), null, "jar"));
-        mandatoryTopLevelArtifacts.add(this.factory.createArtifact("org.xwiki.platform",
-            "xwiki-platform-wysiwyg-client", this.project.getVersion(), null, "jar"));
-        mandatoryTopLevelArtifacts.add(this.factory.createArtifact("org.xwiki.platform",
-            "xwiki-platform-webdav-server", this.project.getVersion(), null, "jar"));
-        mandatoryTopLevelArtifacts.add(this.factory.createArtifact("org.xwiki.platform", "xwiki-platform-rest-server",
-            this.project.getVersion(), null, "jar"));
-        mandatoryTopLevelArtifacts.add(this.factory.createArtifact("org.xwiki.platform", "xwiki-platform-gwt-api",
-            this.project.getVersion(), null, "jar"));
+        mandatoryTopLevelArtifacts.add(this.repositorySystem.createArtifact("org.xwiki.platform",
+            "xwiki-platform-wysiwyg-server", getXWikiPlatformVersion(), null, "jar"));
+        mandatoryTopLevelArtifacts.add(this.repositorySystem.createArtifact("org.xwiki.platform",
+            "xwiki-platform-webdav-server", getXWikiPlatformVersion(), null, "jar"));
+        mandatoryTopLevelArtifacts.add(this.repositorySystem.createArtifact("org.xwiki.platform",
+            "xwiki-platform-rest-server", getXWikiPlatformVersion(), null, "jar"));
+        mandatoryTopLevelArtifacts.add(this.repositorySystem.createArtifact("org.xwiki.platform",
+            "xwiki-platform-gwt-api", getXWikiPlatformVersion(), null, "jar"));
 
         // Needed by platform-web but since we don't have any dep in platform-web's pom.xml at the moment (duplication
         // issue with XE/XEM and platform-web) we need to include it here FTM... Solution: get a better maven WAR plugin
         // with proper merge feature and then remove this...
-        mandatoryTopLevelArtifacts.add(this.factory.createArtifact("org.xwiki.platform",
-            "xwiki-platform-uiextension-api", this.project.getVersion(), null, "jar"));
-        mandatoryTopLevelArtifacts.add(this.factory.createArtifact("org.xwiki.platform",
-            "xwiki-platform-localization-script", this.project.getVersion(), null, "jar"));
-        mandatoryTopLevelArtifacts.add(this.factory.createArtifact("org.xwiki.platform",
-            "xwiki-platform-localization-source-legacy", this.project.getVersion(), null, "jar"));
-        mandatoryTopLevelArtifacts.add(this.factory.createArtifact("org.xwiki.platform",
-            "xwiki-platform-security-bridge", this.project.getVersion(), null, "jar"));
+        mandatoryTopLevelArtifacts.add(this.repositorySystem.createArtifact("org.xwiki.platform",
+            "xwiki-platform-uiextension-api", getXWikiPlatformVersion(), null, "jar"));
+        mandatoryTopLevelArtifacts.add(this.repositorySystem.createArtifact("org.xwiki.platform",
+            "xwiki-platform-localization-script", getXWikiPlatformVersion(), null, "jar"));
+        mandatoryTopLevelArtifacts.add(this.repositorySystem.createArtifact("org.xwiki.platform",
+            "xwiki-platform-localization-source-legacy", getXWikiPlatformVersion(), null, "jar"));
+        mandatoryTopLevelArtifacts.add(this.repositorySystem.createArtifact("org.xwiki.platform",
+            "xwiki-platform-security-bridge", getXWikiPlatformVersion(), null, "jar"));
+        mandatoryTopLevelArtifacts.add(this.repositorySystem.createArtifact("org.xwiki.platform",
+            "xwiki-platform-url-standard", getXWikiPlatformVersion(), null, "jar"));
+        mandatoryTopLevelArtifacts.add(this.repositorySystem.createArtifact("org.xwiki.platform",
+            "xwiki-platform-wiki-default", getXWikiPlatformVersion(), null, "jar"));
 
         // Ensures all logging goes through SLF4J and Logback.
-        mandatoryTopLevelArtifacts.add(this.factory.createArtifact("org.xwiki.commons",
-            "xwiki-commons-logging-logback", this.getXWikiCommonsVersion(), null, "jar"));
+        mandatoryTopLevelArtifacts.add(this.repositorySystem.createArtifact("org.xwiki.commons",
+            "xwiki-commons-logging-logback", this.getXWikiCommonsVersion(), "compile", "jar"));
         // Get the logging artifact versions from the top level XWiki Commons POM
         MavenProject pomProject = getTopLevelPOMProject();
-        mandatoryTopLevelArtifacts.add(this.factory.createArtifact("org.slf4j", "jcl-over-slf4j",
+        mandatoryTopLevelArtifacts.add(this.repositorySystem.createArtifact("org.slf4j", "jcl-over-slf4j",
             getDependencyManagementVersion(pomProject, "org.slf4j", "jcl-over-slf4j"), null, "jar"));
-        mandatoryTopLevelArtifacts.add(this.factory.createArtifact("org.slf4j", "log4j-over-slf4j",
+        mandatoryTopLevelArtifacts.add(this.repositorySystem.createArtifact("org.slf4j", "log4j-over-slf4j",
             getDependencyManagementVersion(pomProject, "org.slf4j", "log4j-over-slf4j"), null, "jar"));
+
+        // When writing functional tests there's is often the need to export pages as XAR. Thus, in order to make
+        // developer's life easy, we also include the wikistream module (used for XAR exports).
+        mandatoryTopLevelArtifacts.add(this.repositorySystem.createArtifact("org.xwiki.platform",
+            "xwiki-platform-wikistream-instance-oldcore", getXWikiPlatformVersion(), null, "jar"));
 
         return mandatoryTopLevelArtifacts;
     }
 
     private Set<Artifact> resolveTransitively(Set<Artifact> artifacts) throws MojoExecutionException
     {
-        Set<Artifact> resolvedArtifacts = new HashSet<Artifact>();
-        try {
-            AndArtifactFilter filter = new AndArtifactFilter();
-            filter.add(new ScopeArtifactFilter("runtime"));
-
+        AndArtifactFilter filter =
+            new AndArtifactFilter(Arrays.asList(new ScopeArtifactFilter("runtime"),
             // - Exclude JCL and LOG4J since we want all logging to go through SLF4J. Note that we're excluding
             // log4j-<version>.jar but keeping log4j-over-slf4j-<version>.jar
-            // - Exclude batik-js to prevent conflict with the patched version of Rhino used by yuicompressor used for
-            // JSX. See http://jira.xwiki.org/jira/browse/XWIKI-6151 for more details.
-            filter.add(new ExcludesArtifactFilter(Arrays.asList("org.apache.xmlgraphic:batik-js",
-                "commons-logging:commons-logging", "commons-logging:commons-logging-api", "log4j:log4j")));
+            // - Exclude batik-js to prevent conflict with the patched version of Rhino used by yuicompressor used
+            // for JSX. See http://jira.xwiki.org/jira/browse/XWIKI-6151 for more details.
+                new ExcludesArtifactFilter(Arrays.asList("org.apache.xmlgraphic:batik-js",
+                    "commons-logging:commons-logging", "commons-logging:commons-logging-api", "log4j:log4j"))));
 
-            ArtifactResolutionResult arr =
-                this.resolver.resolveTransitively(artifacts, this.project.getArtifact(),
-                    this.project.getManagedVersionMap(), this.local, this.remoteRepos, this.metadataSource, filter);
-            resolvedArtifacts.addAll(arr.getArtifacts());
-        } catch (Exception e) {
-            throw new MojoExecutionException("Failed to resolve mandatory artifacts", e);
+        ArtifactResolutionRequest request =
+            new ArtifactResolutionRequest().setArtifact(this.project.getArtifact()).setArtifactDependencies(artifacts)
+                .setCollectionFilter(filter).setRemoteRepositories(this.remoteRepositories)
+                .setLocalRepository(this.localRepository).setManagedVersionMap(getManagedVersionMap())
+                .setResolveRoot(false);
+        ArtifactResolutionResult resolutionResult = this.repositorySystem.resolve(request);
+        if (resolutionResult.hasExceptions()) {
+            throw new MojoExecutionException(String.format("Failed to resolve artifacts [%s]", artifacts,
+                resolutionResult.getExceptions().get(0)));
         }
 
-        return resolvedArtifacts;
+        return resolutionResult.getArtifacts();
+    }
+
+    private Map<String, Artifact> getManagedVersionMap() throws MojoExecutionException
+    {
+        Map<String, Artifact> dependencyManagementMap = new HashMap<String, Artifact>();
+
+        // Add Platform Core's <dependencyManagement> since this is where we keep all our dependencies management
+        // information. We absolutely need to include those because Maven 3.x's artifact seems to have a big hole in
+        // not handling artifact's parent dependency management information by itself!
+        // See http://jira.codehaus.org/browse/MNG-5462
+        dependencyManagementMap.putAll(getPlatformPOMProject().getManagedVersionMap());
+
+        // We add the project's dependency management in a second step so that it can override the platform dep mgmt map
+        dependencyManagementMap.putAll(this.project.getManagedVersionMap());
+
+        return dependencyManagementMap;
     }
 
     private MavenProject getTopLevelPOMProject() throws MojoExecutionException
     {
-        MavenProject pomProject;
-        Artifact pomArtifact =
-            this.factory.createProjectArtifact("org.xwiki.commons", "xwiki-commons", this.getXWikiCommonsVersion());
+        return getMavenProject(this.repositorySystem.createProjectArtifact("org.xwiki.commons", "xwiki-commons",
+            getXWikiCommonsVersion()));
+    }
+
+    private MavenProject getPlatformPOMProject() throws MojoExecutionException
+    {
+        return getMavenProject(this.repositorySystem.createProjectArtifact("org.xwiki.platform", "xwiki-platform-core",
+            getXWikiPlatformVersion()));
+    }
+
+    private MavenProject getMavenProject(Artifact artifact) throws MojoExecutionException
+    {
         try {
-            pomProject = this.mavenProjectBuilder.buildFromRepository(pomArtifact, this.remoteRepos, this.local);
+            ProjectBuildingRequest request =
+                new DefaultProjectBuildingRequest().setRepositorySession(this.repositorySystemSession)
+                // We don't want to execute any plugin here
+                    .setProcessPlugins(false)
+                    // It's not this plugin job to validate this pom.xml
+                    .setValidationLevel(ModelBuildingRequest.VALIDATION_LEVEL_MINIMAL);
+            // Note: build() will automatically get the POM artifact corresponding to the passed artifact.
+            ProjectBuildingResult result = this.projectBuilder.build(artifact, request);
+            return result.getProject();
         } catch (ProjectBuildingException e) {
-            throw new MojoExecutionException(String.format("Failed to build project for [%s]", pomArtifact), e);
+            throw new MojoExecutionException(String.format("Failed to build project for [%s]", artifact), e);
         }
-        return pomProject;
     }
 
     /**
@@ -637,6 +728,20 @@ public class PackageMojo extends AbstractMojo
     private String getXWikiCommonsVersion()
     {
         return this.project.getProperties().getProperty("commons.version", this.project.getVersion());
+    }
+
+    /**
+     * @return the version of the XWiki Platform project, either configured in the project using this plugin or taken
+     *         from the {@code platform.version} property if defined, defaulting to the current project version if not
+     *         defined
+     */
+    private String getXWikiPlatformVersion()
+    {
+        String version = this.platformVersion;
+        if (version == null) {
+            version = this.project.getVersion();
+        }
+        return version;
     }
 
     private String getDependencyManagementVersion(MavenProject project, String groupId, String artifactId)
@@ -703,17 +808,20 @@ public class PackageMojo extends AbstractMojo
 
     private void resolveArtifact(Artifact artifact) throws MojoExecutionException
     {
-        try {
-            this.resolver.resolve(artifact, this.remoteRepos, this.local);
-        } catch (Exception e) {
-            throw new MojoExecutionException(String.format("Failed to resolve artifact [%s]", artifact), e);
+        ArtifactResolutionRequest request =
+            new ArtifactResolutionRequest().setArtifact(artifact).setRemoteRepositories(this.remoteRepositories)
+                .setLocalRepository(this.localRepository);
+        ArtifactResolutionResult resolutionResult = this.repositorySystem.resolve(request);
+        if (resolutionResult.hasExceptions()) {
+            throw new MojoExecutionException(String.format("Failed to resolve artifact [%s]", artifact,
+                resolutionResult.getExceptions().get(0)));
         }
     }
 
     private Artifact resolveArtifact(String groupId, String artifactId, String version, String type)
         throws MojoExecutionException
     {
-        Artifact artifact = this.factory.createArtifact(groupId, artifactId, version, "", type);
+        Artifact artifact = this.repositorySystem.createArtifact(groupId, artifactId, version, "", type);
         resolveArtifact(artifact);
         return artifact;
     }
@@ -767,8 +875,7 @@ public class PackageMojo extends AbstractMojo
             + "        com.xpn.xwiki.plugin.skinx.CssSkinExtensionPlugin,\\"
             + "        com.xpn.xwiki.plugin.skinx.CssSkinFileExtensionPlugin,\\"
             + "        com.xpn.xwiki.plugin.skinx.LinkExtensionPlugin");
-        props.setProperty("xwikiCfgVirtual", "0");
-        props.setProperty("xwikiCfgVirtualUsepath", "0");
+        props.setProperty("xwikiCfgVirtualUsepath", "1");
         props.setProperty("xwikiCfgEditCommentMandatory", "0");
         props.setProperty("xwikiCfgDefaultSkin", "colibri");
         props.setProperty("xwikiCfgDefaultBaseSkin", "colibri");

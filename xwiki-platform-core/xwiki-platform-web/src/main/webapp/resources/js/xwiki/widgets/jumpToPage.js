@@ -20,11 +20,11 @@ widgets.JumpToPage = Class.create(widgets.ModalPopup, {
     this.input = new Element("input", {
       "type" : "text",
       "id" : "jmp_target",
-      "title" : "$msg.get('core.viewers.jump.dialog.input.tooltip')"
+      "title" : "$services.localization.render('core.viewers.jump.dialog.input.tooltip')"
     });
     content.appendChild(this.input);
-    this.viewButton = this.createButton("button", "$msg.get('core.viewers.jump.dialog.actions.view')", "$msg.get('core.viewers.jump.dialog.actions.view.tooltip')", "jmp_view");
-    this.editButton = this.createButton("button", "$msg.get('core.viewers.jump.dialog.actions.edit')", "$msg.get('core.viewers.jump.dialog.actions.edit.tooltip')", "jmp_edit");
+    this.viewButton = this.createButton("button", "$services.localization.render('core.viewers.jump.dialog.actions.view')", "$services.localization.render('core.viewers.jump.dialog.actions.view.tooltip')", "jmp_view");
+    this.editButton = this.createButton("button", "$services.localization.render('core.viewers.jump.dialog.actions.edit')", "$services.localization.render('core.viewers.jump.dialog.actions.edit.tooltip')", "jmp_edit");
     var buttonContainer = new Element("div", {"class" : "buttons"});
     buttonContainer.appendChild(this.viewButton);
     buttonContainer.appendChild(this.editButton);
@@ -32,12 +32,12 @@ widgets.JumpToPage = Class.create(widgets.ModalPopup, {
     $super(
       content,
       {
-        "show" : { method : this.showDialog, keys : [$msg.get('core.viewers.jump.shortcuts')] },
-        "view" : { method : this.openDocument, keys : [$msg.get('core.viewers.jump.dialog.actions.view.shortcuts')] },
-        "edit" : { method : this.openDocument, keys : [$msg.get('core.viewers.jump.dialog.actions.edit.shortcuts')] }
+        "show" : { method : this.showDialog, keys : [$services.localization.render('core.viewers.jump.shortcuts')] },
+        "view" : { method : this.openDocument, keys : [$services.localization.render('core.viewers.jump.dialog.actions.view.shortcuts')] },
+        "edit" : { method : this.openDocument, keys : [$services.localization.render('core.viewers.jump.dialog.actions.edit.shortcuts')] }
       },
       {
-        title : "$msg.get('core.viewers.jump.dialog.content')",
+        title : "$services.localization.render('core.viewers.jump.dialog.content')",
         verticalPosition : "top"
       }
     );
@@ -56,10 +56,14 @@ widgets.JumpToPage = Class.create(widgets.ModalPopup, {
       // Create the Suggest.
       new XWiki.widgets.Suggest(this.input, {
         // This document also provides the suggestions.
-        script: "${request.contextPath}/rest/wikis/${context.database}/search?scope=name&number=10&",
+        // Trick so that Velocity will get executed but Javascript lint will not choke on it... Note that we cannot
+        // use a standard javascript comment ("//") since the minification process removes comments ;)
+        // We use the special construct ("/*!") which tells yuicompressor to not compress this part...
+        /*!#set ($restURL = "${request.contextPath}/rest/wikis/${xcontext.database}/search?scope=name&number=10&")*/
+        script: "$response.encodeURL($restURL)",
         // Prefixed with & since the current (as of 1.7) Suggest code does not automatically append it.
         varname: "q",
-        noresults: "$msg.get('core.viewers.jump.suggest.noResults')",
+        noresults: "$services.localization.render('core.viewers.jump.suggest.noResults')",
         icon: "${xwiki.getSkinFile('icons/silk/page_white_text.png')}",
         json: true,
         resultsParameter : "searchResults",
@@ -82,7 +86,7 @@ widgets.JumpToPage = Class.create(widgets.ModalPopup, {
   },
   /**
    * Open the selected document in the specified mode.
-   * 
+   *
    * @param {Event} event The event that triggered this action. Either a keyboard shortcut or a button click.
    * @param {String} mode The mode that the document should be opened in. One of "view" or "edit". Note that on the
    *     server side, "edit" could be replaced with "inline" if the document is sheet-based.
@@ -90,13 +94,14 @@ widgets.JumpToPage = Class.create(widgets.ModalPopup, {
   openDocument : function(event, mode) {
     if (!$('as_jmp_target') && this.input.value != "") {
       Event.stop(event);
-      window.self.location = this.urlTemplate.replace("__space__/__document__", this.input.value.replace(".", "/")).replace("__action__", mode);
+      var reference = XWiki.Model.resolve(this.input.value, XWiki.EntityType.DOCUMENT);
+      window.self.location = this.urlTemplate.replace("__space__", reference.parent.name).replace("__document__", reference.name).replace("__action__", mode);
     }
   },
   addQuickLinksEntry : function() {
     $$(".panel.QuickLinks .xwikipanelcontents").each(function(item) {
       var jumpToPageActivator = new Element('span', {'class': "jmp-activator"});
-      jumpToPageActivator.update("$msg.get('core.viewers.jump.quickLinksText')");
+      jumpToPageActivator.update("$services.localization.render('core.viewers.jump.quickLinksText')");
       Event.observe(jumpToPageActivator, "click", function(event) {
         this.showDialog(event);
       }.bindAsEventListener(this));

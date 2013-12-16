@@ -64,12 +64,12 @@ import com.xpn.xwiki.doc.XWikiDocument;
  * @since 4.3M2
  */
 public abstract class AbstractDocumentTranslationBundle extends AbstractCachedTranslationBundle implements
-    TranslationBundle, DisposableCacheValue, Disposable, EventListener
+    DisposableCacheValue, Disposable, EventListener
 {
     /**
-     * The prefix to use in all wiki document based translations.
+     * Make default wiki document based translation priority a bit higher than the default one.
      */
-    public static final String ID_PREFIX = "document:";
+    public static int DEFAULTPRIORITY_WIKI = DEFAULTPRIORITY - 100;
 
     protected TranslationBundleContext bundleContext;
 
@@ -85,9 +85,16 @@ public abstract class AbstractDocumentTranslationBundle extends AbstractCachedTr
 
     protected DocumentReference documentReference;
 
-    public AbstractDocumentTranslationBundle(DocumentReference reference, ComponentManager componentManager,
-        TranslationMessageParser translationMessageParser) throws ComponentLookupException
+    /**
+     * The prefix to use when generating the bundle unique identifier.
+     */
+    protected String idPrefix;
+
+    public AbstractDocumentTranslationBundle(String idPrefix, DocumentReference reference,
+        ComponentManager componentManager, TranslationMessageParser translationMessageParser)
+        throws ComponentLookupException
     {
+        this.idPrefix = idPrefix;
         this.bundleContext = componentManager.getInstance(TranslationBundleContext.class);
         this.serializer = componentManager.getInstance(EntityReferenceSerializer.TYPE_STRING);
         this.contextProvider =
@@ -98,6 +105,8 @@ public abstract class AbstractDocumentTranslationBundle extends AbstractCachedTr
         this.translationMessageParser = translationMessageParser;
 
         this.logger = LoggerFactory.getLogger(getClass());
+
+        setPriority(DEFAULTPRIORITY_WIKI);
 
         setReference(reference);
 
@@ -118,7 +127,7 @@ public abstract class AbstractDocumentTranslationBundle extends AbstractCachedTr
     {
         this.documentReference = reference;
 
-        setId(ID_PREFIX + this.serializer.serialize(reference));
+        setId(this.idPrefix + this.serializer.serialize(reference));
     }
 
     protected LocalizedTranslationBundle loadDocumentLocaleBundle(Locale locale) throws Exception
@@ -128,14 +137,12 @@ public abstract class AbstractDocumentTranslationBundle extends AbstractCachedTr
         XWikiDocument document = context.getWiki().getDocument(this.documentReference, context);
 
         if (locale != null && !locale.equals(Locale.ROOT) && !locale.equals(document.getDefaultLocale())) {
-            XWikiDocument tdocument = document.getTranslatedDocument(locale, context);
+            document = context.getWiki().getDocument(new DocumentReference(document.getDocumentReference(), locale), context);
 
-            if (tdocument == document) {
+            if (document.isNew()) {
                 // No document found for this locale
                 return null;
             }
-
-            document = tdocument;
         }
 
         String content = document.getContent();
@@ -201,7 +208,11 @@ public abstract class AbstractDocumentTranslationBundle extends AbstractCachedTr
         } else {
             XWikiDocument document = (XWikiDocument) arg1;
 
-            bundleCache.remove(document.getLocale() != null ? document.getLocale() : Locale.ROOT);
+            this.bundleCache.remove(document.getLocale());
+
+            if (document.getLocale().equals(Locale.ROOT)) {
+                this.bundleCache.remove(document.getDefaultLocale());
+            }
         }
     }
 

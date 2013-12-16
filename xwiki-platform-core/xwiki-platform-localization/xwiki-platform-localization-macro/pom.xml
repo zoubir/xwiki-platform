@@ -27,12 +27,17 @@
   <parent>
     <groupId>org.xwiki.platform</groupId>
     <artifactId>xwiki-platform-localization</artifactId>
-    <version>5.0-SNAPSHOT</version>
+    <version>5.4-SNAPSHOT</version>
   </parent>
   <artifactId>xwiki-platform-localization-macro</artifactId>
   <name>XWiki Platform - Localization - Macro</name>
   <packaging>jar</packaging>
-  <description>XWiki Platform - Localization - Macro</description>
+  <description>Allow to insert a translation message in a content</description>
+  <properties>
+    <!-- Name to display by the Extension Manager -->
+    <xwiki.extension.name>Translation Macro</xwiki.extension.name>
+    <xwiki.jacoco.instructionRatio>0.85</xwiki.jacoco.instructionRatio>
+  </properties>
   <dependencies>
     <dependency>
       <groupId>org.xwiki.platform</groupId>
@@ -44,7 +49,6 @@
       <artifactId>xwiki-rendering-transformation-macro</artifactId>
       <version>${rendering.version}</version>
     </dependency>
-
     <!-- Testing dependencies -->
     <dependency>
       <groupId>org.xwiki.rendering</groupId>

@@ -87,11 +87,6 @@ public class BaseClass extends BaseCollection<DocumentReference> implements Clas
     private boolean isDirty = true;
 
     /**
-     * The owner document, if this object was obtained from a document.
-     */
-    private transient XWikiDocument ownerDocument;
-
-    /**
      * Used to resolve a string into a proper Document Reference using the current document's reference to fill the
      * blanks, except for the page name for which the default page name is used instead and for the wiki name for which
      * the current wiki is used instead of the current document reference's wiki.
@@ -664,6 +659,22 @@ public class BaseClass extends BaseCollection<DocumentReference> implements Clas
         return false;
     }
 
+    public boolean addEmailField(String fieldName, String fieldPrettyName, int size)
+    {
+        if (get(fieldName) == null) {
+            EmailClass emailClass = new EmailClass();
+            emailClass.setName(fieldName);
+            emailClass.setPrettyName(fieldPrettyName);
+            emailClass.setSize(size);
+            emailClass.setObject(this);
+            put(fieldName, emailClass);
+
+            return true;
+        }
+
+        return false;
+    }
+
     public boolean addBooleanField(String fieldName, String fieldPrettyName, String displayType)
     {
         if (get(fieldName) == null) {
@@ -1058,8 +1069,7 @@ public class BaseClass extends BaseCollection<DocumentReference> implements Clas
     }
 
     /**
-     * @deprecated since 2.2.3 use {@link #newCustomClassInstance(DocumentReference classReference,
-     *             com.xpn.xwiki.XWikiContext)}
+     * @deprecated since 2.2.3 use {@link #newCustomClassInstance(DocumentReference, XWikiContext)}
      */
     @Deprecated
     public static BaseObject newCustomClassInstance(String className, XWikiContext context) throws XWikiException
@@ -1160,7 +1170,6 @@ public class BaseClass extends BaseCollection<DocumentReference> implements Clas
     }
 
     private boolean executeValidationScript(BaseObject obj, String validationScript, XWikiContext context)
-        throws XWikiException
     {
         try {
             XWikiValidationInterface validObject =
@@ -1347,7 +1356,12 @@ public class BaseClass extends BaseCollection<DocumentReference> implements Clas
      */
     public void setOwnerDocument(XWikiDocument ownerDocument)
     {
-        this.ownerDocument = ownerDocument;
+        super.setOwnerDocument(ownerDocument);
+
+        if (this.ownerDocument != null) {
+            setDocumentReference(this.ownerDocument.getDocumentReference());
+        }
+
         if (ownerDocument != null && isDirty) {
             ownerDocument.setContentDirty(true);
         }

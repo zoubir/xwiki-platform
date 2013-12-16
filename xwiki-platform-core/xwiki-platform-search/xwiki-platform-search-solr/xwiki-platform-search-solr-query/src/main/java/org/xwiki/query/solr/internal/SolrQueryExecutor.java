@@ -19,6 +19,7 @@
  */
 package org.xwiki.query.solr.internal;
 
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -40,7 +41,7 @@ import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.query.Query;
 import org.xwiki.query.QueryException;
 import org.xwiki.query.QueryExecutor;
-import org.xwiki.search.solr.internal.api.Fields;
+import org.xwiki.search.solr.internal.api.FieldUtils;
 import org.xwiki.search.solr.internal.api.SolrInstance;
 
 /**
@@ -106,7 +107,15 @@ public class SolrQueryExecutor implements QueryExecutor
             // TODO: good idea? Any confusion? Do we really needs something like this?
             // Reuse the Query.getNamedParameters() map to get extra parameters.
             for (Entry<String, Object> entry : query.getNamedParameters().entrySet()) {
-                solrQuery.set(entry.getKey(), String.valueOf(entry.getValue()));
+                Object value = entry.getValue();
+
+                if (value instanceof Iterable) {
+                    solrQuery.set(entry.getKey(), toStringArray((Iterable) value));
+                } else if (value != null && value.getClass().isArray()) {
+                    solrQuery.set(entry.getKey(), toStringArray(value));
+                } else {
+                    solrQuery.set(entry.getKey(), String.valueOf(value));
+                }
             }
 
             QueryResponse response = solrInstance.query(solrQuery);
@@ -127,6 +136,38 @@ public class SolrQueryExecutor implements QueryExecutor
     }
 
     /**
+     * Converts an arbitrary array to an array containing its string representations.
+     * 
+     * @param array an array of arbitrary type, must not be null
+     * @return an array with the string representations of the passed array's items
+     */
+    private String[] toStringArray(Object array)
+    {
+        int length = Array.getLength(array);
+        String[] args = new String[length];
+        for (int i = 0; i < length; i++) {
+            args[i] = String.valueOf(Array.get(array, i));
+        }
+
+        return args;
+    }
+
+    /**
+     * Converts the given iterable object to an array containing its string representations.
+     * 
+     * @param iterable the iterable object, must not be null
+     * @return an array with the string representations of the passed iterable's items
+     */
+    private String[] toStringArray(Iterable iterable)
+    {
+        List<String> args = new ArrayList<String>();
+        for (Object obj : iterable) {
+            args.add(String.valueOf(obj));
+        }
+        return args.toArray(new String[args.size()]);
+    }
+
+    /**
      * Filter out results from the response that the current user does not have access to view.
      * 
      * @param response the Solr response to filter
@@ -140,8 +181,8 @@ public class SolrQueryExecutor implements QueryExecutor
         for (SolrDocument result : new ArrayList<SolrDocument>(results)) {
             try {
                 DocumentReference resultDocumentReference =
-                    new DocumentReference((String) result.get(Fields.WIKI), (String) result.get(Fields.SPACE),
-                        (String) result.get(Fields.NAME));
+                    new DocumentReference((String) result.get(FieldUtils.WIKI), (String) result.get(FieldUtils.SPACE),
+                        (String) result.get(FieldUtils.NAME));
 
                 if (!documentAccessBridge.exists(resultDocumentReference)
                     || !documentAccessBridge.isDocumentViewable(resultDocumentReference)) {

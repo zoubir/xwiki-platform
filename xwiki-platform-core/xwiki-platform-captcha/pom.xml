@@ -27,14 +27,14 @@
   <parent>
     <groupId>org.xwiki.platform</groupId>
     <artifactId>xwiki-platform-core</artifactId>
-    <version>5.0-SNAPSHOT</version>
+    <version>5.4-SNAPSHOT</version>
   </parent>
   <artifactId>xwiki-platform-captcha</artifactId>
   <name>XWiki Platform - Captcha</name>
   <packaging>jar</packaging>
   <description>XWiki Platform - Captcha</description>
   <properties>
-    <xwiki.jacoco.instructionRatio>0</xwiki.jacoco.instructionRatio>
+    <xwiki.jacoco.instructionRatio>0.00</xwiki.jacoco.instructionRatio>
   </properties>
   <dependencies>
     <!-- CaptchaActions are components -->
@@ -80,8 +80,8 @@
     </dependency>
     <!-- AbstractCaptchaAction extends org.apache.struts.action.Action -->
     <dependency>
-      <groupId>struts</groupId>
-      <artifactId>struts</artifactId>
+      <groupId>org.apache.struts</groupId>
+      <artifactId>struts-core</artifactId>
     </dependency>
   </dependencies>
   <build>

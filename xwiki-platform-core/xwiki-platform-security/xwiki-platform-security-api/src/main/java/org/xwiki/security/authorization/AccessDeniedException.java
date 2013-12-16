@@ -43,12 +43,34 @@ public class AccessDeniedException extends AuthorizationException
     }
 
     /**
+     * @param right The right currently being checked.
+     * @param userReference The user, for which the query was attempted.
+     * @param entityReference The entity, on which the query was attempted.
+     */
+    public AccessDeniedException(Right right, DocumentReference userReference, EntityReference entityReference)
+    {
+        this(right, userReference, entityReference, null);
+    }
+
+    /**
      * @param userReference The user, for which the query was attempted.
      * @param entityReference The entity, on which the query was attempted.
      * @param t a Throwable providing details about the underlying cause.
      */
     public AccessDeniedException(DocumentReference userReference, EntityReference entityReference, Throwable t)
     {
-        super(userReference, entityReference, "Access denied", t);
+        this(null, userReference, entityReference, t);
+    }
+
+    /**
+     * @param right The right currently being checked.
+     * @param userReference The user, for which the query was attempted.
+     * @param entityReference The entity, on which the query was attempted.
+     * @param t a Throwable providing details about the underlying cause.
+     */
+    public AccessDeniedException(Right right, DocumentReference userReference, EntityReference entityReference,
+        Throwable t)
+    {
+        super(right, userReference, entityReference, "Access denied", t);
     }
 }

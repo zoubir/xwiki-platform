@@ -19,27 +19,35 @@
  */
 package org.xwiki.search.solr.internal.metadata;
 
-import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import javax.inject.Inject;
 import javax.inject.Named;
+import javax.inject.Singleton;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.solr.common.SolrInputDocument;
 import org.xwiki.component.annotation.Component;
+import org.xwiki.model.EntityType;
 import org.xwiki.model.reference.DocumentReference;
+import org.xwiki.model.reference.DocumentReferenceResolver;
 import org.xwiki.model.reference.EntityReference;
+import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.rendering.renderer.BlockRenderer;
 import org.xwiki.rendering.renderer.printer.DefaultWikiPrinter;
 import org.xwiki.rendering.renderer.printer.WikiPrinter;
 import org.xwiki.rendering.syntax.Syntax;
-import org.xwiki.search.solr.internal.api.Fields;
-import org.xwiki.search.solr.internal.api.SolrIndexException;
+import org.xwiki.search.solr.internal.api.FieldUtils;
+import org.xwiki.search.solr.internal.api.SolrFieldNameEncoder;
 
 import com.xpn.xwiki.XWikiContext;
+import com.xpn.xwiki.XWikiException;
+import com.xpn.xwiki.doc.XWikiAttachment;
 import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.objects.BaseObject;
+import com.xpn.xwiki.objects.BaseProperty;
 
 /**
  * Extract the metadata to be indexed from document.
@@ -49,122 +57,262 @@ import com.xpn.xwiki.objects.BaseObject;
  */
 @Component
 @Named("document")
+@Singleton
 public class DocumentSolrMetadataExtractor extends AbstractSolrMetadataExtractor
 {
-
     /**
      * BlockRenderer component used to render the wiki content before indexing.
      */
     @Inject
     @Named("plain/1.0")
-    protected BlockRenderer renderer;
+    private BlockRenderer renderer;
+
+    @Inject
+    private EntityReferenceSerializer<String> entityReferenceSerializer;
+
+    /**
+     * Used to resolve the attachment author reference because {@link XWikiAttachment} doesn't have a method to return
+     * the author reference.
+     */
+    @Inject
+    private DocumentReferenceResolver<String> documentReferenceResolver;
+
+    /**
+     * Used to serialize entity reference to be used in dynamic field names.
+     */
+    @Inject
+    @Named("solr")
+    private EntityReferenceSerializer<String> fieldNameSerializer;
+
+    /**
+     * Used to encode dynamic field names that may contain special characters.
+     */
+    @Inject
+    private SolrFieldNameEncoder fieldNameEncoder;
 
     @Override
-    public SolrInputDocument getSolrDocument(EntityReference entityReference) throws SolrIndexException,
-        IllegalArgumentException
+    public boolean setFieldsInternal(LengthSolrInputDocument solrDocument, EntityReference entityReference)
+        throws Exception
     {
         DocumentReference documentReference = new DocumentReference(entityReference);
 
-        XWikiContext context = getXWikiContext();
+        XWikiContext xcontext = this.xcontextProvider.get();
 
+        XWikiDocument translatedDocument = getTranslatedDocument(documentReference);
+        if (translatedDocument == null) {
+            return false;
+        }
+
+        Locale locale = getLocale(documentReference);
+
+        solrDocument.setField(FieldUtils.FULLNAME, localSerializer.serialize(documentReference));
+
+        // Same for document title
         try {
-            SolrInputDocument solrDocument = new SolrInputDocument();
+            String plainTitle = translatedDocument.getRenderedTitle(Syntax.PLAIN_1_0, xcontext);
 
-            XWikiDocument translatedDocument = getTranslatedDocument(documentReference);
-            String language = getLanguage(documentReference);
+            // Rendered title.
+            solrDocument.setField(FieldUtils.getFieldName(FieldUtils.TITLE, locale), plainTitle);
+        } catch (Throwable e) {
+            this.logger.error("Failed to render title for document [{}]", entityReference);
+        }
 
-            solrDocument.addField(Fields.ID, getId(documentReference));
-            addDocumentFields(documentReference, solrDocument);
-            solrDocument.addField(Fields.TYPE, documentReference.getType().name());
-            solrDocument.addField(Fields.FULLNAME, compactSerializer.serialize(documentReference));
+        // Raw Content
+        solrDocument.setField(FieldUtils.getFieldName(FieldUtils.DOCUMENT_RAW_CONTENT, locale),
+            translatedDocument.getContent());
 
-            // Convert the XWiki syntax of document to plain text.
-            WikiPrinter printer = new DefaultWikiPrinter();
-            renderer.render(translatedDocument.getXDOM(), printer);
+        // Rendered content
+        try {
+            WikiPrinter plainContentPrinter = new DefaultWikiPrinter();
+            this.renderer.render(translatedDocument.getXDOM(), plainContentPrinter);
+            solrDocument.setField(FieldUtils.getFieldName(FieldUtils.DOCUMENT_RENDERED_CONTENT, locale),
+                plainContentPrinter.toString());
+        } catch (Throwable e) {
+            this.logger.error("Failed to render content for document [{}]", entityReference);
+        }
 
-            // Same for document title
-            String plainTitle = translatedDocument.getRenderedTitle(Syntax.PLAIN_1_0, context);
+        solrDocument.setField(FieldUtils.VERSION, translatedDocument.getVersion());
+        solrDocument.setField(FieldUtils.COMMENT, translatedDocument.getComment());
 
-            // Get the rendered plain text title.
-            solrDocument.addField(String.format(Fields.MULTILIGNUAL_FORMAT, Fields.TITLE, language), plainTitle);
-            solrDocument.addField(String.format(Fields.MULTILIGNUAL_FORMAT, Fields.DOCUMENT_CONTENT, language),
-                printer.toString());
-            solrDocument.addField(Fields.VERSION, translatedDocument.getVersion());
+        solrDocument.setField(FieldUtils.DOCUMENT_LOCALE, translatedDocument.getLocale().toString());
 
-            solrDocument.addField(Fields.AUTHOR, serializer.serialize(translatedDocument.getAuthorReference()));
-            solrDocument.addField(Fields.CREATOR, serializer.serialize(translatedDocument.getCreatorReference()));
-            solrDocument.addField(Fields.CREATIONDATE, translatedDocument.getCreationDate());
-            solrDocument.addField(Fields.DATE, translatedDocument.getContentUpdateDate());
+        // Add locale inheritance
+        addLocales(translatedDocument, translatedDocument.getLocale(), solrDocument);
 
-            // Document translations have their own hidden fields
-            solrDocument.setField(Fields.HIDDEN, translatedDocument.isHidden());
+        // Get both serialized user reference string and pretty user name
+        setAuthors(solrDocument, translatedDocument, entityReference);
 
-            // Index the Comments and Objects in general. Use the original document to get the comment objects since the
-            // translated document is just a lightweight object containing the translated content and title.
+        // Document dates.
+        solrDocument.setField(FieldUtils.CREATIONDATE, translatedDocument.getCreationDate());
+        solrDocument.setField(FieldUtils.DATE, translatedDocument.getContentUpdateDate());
 
-            // Note: To be able to still find translated documents, we need to redundantly index the same objects (and
-            // implicitly comments) for each translation. If we don`t do this, only the original document will be found.
-            XWikiDocument originalDocument = getDocument(documentReference);
+        // Document translations have their own hidden fields
+        solrDocument.setField(FieldUtils.HIDDEN, translatedDocument.isHidden());
 
-            // Comments. TODO: Is this particular handling of comments actually useful?
-            addComments(solrDocument, originalDocument, language);
+        // Add any extra fields (about objects, etc.) that can improve the findability of the document.
+        setExtras(documentReference, solrDocument, locale);
 
-            // Objects
-            for (Map.Entry<DocumentReference, List<BaseObject>> objects : originalDocument.getXObjects().entrySet()) {
-                for (BaseObject object : objects.getValue()) {
-                    this.addObjectContent(solrDocument, object, language);
-                }
-            }
+        return true;
+    }
 
-            // Note: Not indexing attachment contents at this point because they are considered first class search
-            // results. Also, it's easy to see the source XWiki document from the UI.
+    /**
+     * @param solrDocument the Solr document
+     * @param translatedDocument the XWiki document
+     * @param entityReference the document reference
+     */
+    private void setAuthors(SolrInputDocument solrDocument, XWikiDocument translatedDocument,
+        EntityReference entityReference)
+    {
+        XWikiContext xcontext = this.xcontextProvider.get();
 
-            return solrDocument;
-        } catch (Exception e) {
-            throw new SolrIndexException(String.format("Failed to get input document for '%s'",
-                serializer.serialize(documentReference)), e);
+        String authorString = entityReferenceSerializer.serialize(translatedDocument.getAuthorReference());
+        solrDocument.setField(FieldUtils.AUTHOR, authorString);
+        try {
+            String authorDisplayString = xcontext.getWiki().getUserName(authorString, null, false, xcontext);
+            solrDocument.setField(FieldUtils.AUTHOR_DISPLAY, authorDisplayString);
+        } catch (Throwable e) {
+            this.logger.error("Failed to get author display name for document [{}]", entityReference);
+        }
+
+        String creatorString = entityReferenceSerializer.serialize(translatedDocument.getCreatorReference());
+        solrDocument.setField(FieldUtils.CREATOR, creatorString);
+        try {
+            String creatorDisplayString = xcontext.getWiki().getUserName(creatorString, null, false, xcontext);
+            solrDocument.setField(FieldUtils.CREATOR_DISPLAY, creatorDisplayString);
+        } catch (Throwable e) {
+            this.logger.error("Failed to get creator display name for document [{}]", entityReference);
         }
     }
 
     /**
-     * Adds the document comments using the multiValued field {@link Fields#COMMENT}.
-     * 
-     * @param solrDocument the Solr document where to add the comments.
-     * @param originalDocument the XWiki document from which to extract the comments.
-     * @param language the language of the indexed document. In case of translations, this will obviously be different
-     *            than the original document's language.
+     * @param documentReference the document's reference.
+     * @param solrDocument the Solr document where to add the data.
+     * @param locale the locale of which to index the extra data.
+     * @throws XWikiException if problems occur.
      */
-    protected void addComments(SolrInputDocument solrDocument, XWikiDocument originalDocument, String language)
+    protected void setExtras(DocumentReference documentReference, SolrInputDocument solrDocument, Locale locale)
+        throws XWikiException
     {
-        List<BaseObject> comments = originalDocument.getComments();
-        if (comments == null) {
-            return;
-        }
+        // We need to support the following types of queries:
+        // * search for documents matching specific values in multiple XObject properties
+        // * search for documents matching specific values in attachment meta data
+        // In order to avoid using joins we have to index the XObjects and the attachments both separately and on the
+        // document rows in the Solr index. This means we'll have duplicated information but we believe the increase in
+        // the index size pays off if you take into account the simplified query syntax and the search speed.
 
-        for (BaseObject comment : comments) {
-            // Yes, objects can be null at this point...
-            if (comment != null) {
-                String commentString = comment.getStringValue("comment");
-                String author = comment.getStringValue("author");
-                Date date = comment.getDateValue("date");
-                solrDocument.addField(String.format(Fields.MULTILIGNUAL_FORMAT, Fields.COMMENT, language),
-                    String.format("%s by %s on %s", commentString, author, date));
+        // Use the original document to get the objects and the attachments because the translated document is just a
+        // lightweight document containing just the translated content and title.
+        XWikiDocument originalDocument = getDocument(documentReference);
+
+        // NOTE: To be able to still find translated documents, we need to redundantly index the same objects (including
+        // comments) and attachments for each translation. If we don`t do this then only the original document will be
+        // found. That's why we pass the locale of the translated document to the following method calls.
+        setObjects(solrDocument, locale, originalDocument);
+        setAttachments(solrDocument, locale, originalDocument);
+    }
+
+    /**
+     * @param solrDocument the Solr document where to add the objects.
+     * @param locale the locale for which to index the objects.
+     * @param originalDocument the original document where the objects come from.
+     */
+    protected void setObjects(SolrInputDocument solrDocument, Locale locale, XWikiDocument originalDocument)
+    {
+        for (Map.Entry<DocumentReference, List<BaseObject>> objects : originalDocument.getXObjects().entrySet()) {
+            boolean hasObjectsOfThisType = false;
+            for (BaseObject object : objects.getValue()) {
+                // Yes, the old core can return null objects.
+                hasObjectsOfThisType |= object != null;
+                setObjectContent(solrDocument, object, locale);
+            }
+            if (hasObjectsOfThisType) {
+                solrDocument.addField(FieldUtils.CLASS, localSerializer.serialize(objects.getKey()));
             }
         }
     }
 
     @Override
-    public String getId(EntityReference reference) throws SolrIndexException, IllegalArgumentException
+    protected void setPropertyValue(SolrInputDocument solrDocument, BaseProperty<EntityReference> property,
+        TypedValue typedValue, Locale locale)
     {
-        DocumentReference documentReference = new DocumentReference(reference);
+        Object value = typedValue.getValue();
+        String type = typedValue.getType();
 
-        String result = super.getId(reference);
+        // We need to be able to query an object property alone.
+        EntityReference classReference = property.getObject().getRelativeXClassReference();
+        EntityReference propertyReference =
+            new EntityReference(property.getName(), EntityType.CLASS_PROPERTY, classReference);
+        String serializedPropertyReference = fieldNameEncoder.encode(fieldNameSerializer.serialize(propertyReference));
+        String prefix = "property." + serializedPropertyReference;
+        // Note that we're using "addField" because we want to collect all the property values, even from multiple
+        // objects of the same type.
+        solrDocument.addField(FieldUtils.getFieldName(prefix, type, locale), value);
 
-        // Document IDs also contain the language code to differentiate between them.
-        // Objects, attachments, etc. don`t need this because the only thing that is translated in an XWiki document
-        // right now is the document title and content. Objects and attachments are not translated.
-        result += Fields.USCORE + getLanguage(documentReference);
+        // We need to be able to sort by a property value and for this we need a dedicated (single valued) field because
+        // the field we just added is multiValued and multiValued fields are not sortable.
+        // We don't need to sort on properties that hold large localized texts or large strings (e.g. TextArea).
+        if ((type != TypedValue.TEXT && type != TypedValue.STRING)
+            || String.valueOf(value).length() <= SHORT_TEXT_LIMIT) {
+            // Short localized texts are indexed as strings because a sort field is either non-tokenized (i.e. has no
+            // Analyzer) or uses an Analyzer that only produces a single Term (i.e. uses the KeywordTokenizer).
+            String sortType = "sort" + StringUtils.capitalize(type == TypedValue.TEXT ? TypedValue.STRING : type);
+            // We're using "setField" because the sort fields must be single valued. The consequence is that for
+            // properties with multiple values the last value we set will be used for sorting (e.g. if a document has
+            // two objects of the same type then the value from the second object will be used for sorting).
+            solrDocument.setField(FieldUtils.getFieldName(prefix, sortType, locale), value);
+        }
 
-        return result;
+        // We need to be able to query all properties of a specific type of object at once.
+        String serializedClassReference = fieldNameEncoder.encode(fieldNameSerializer.serialize(classReference));
+        String objectOfTypeFieldName = "object." + serializedClassReference;
+        solrDocument.addField(FieldUtils.getFieldName(objectOfTypeFieldName, locale), value);
+
+        // We need to be able to query all objects from a document at once.
+        super.setPropertyValue(solrDocument, property, typedValue, locale);
+    }
+
+    /**
+     * @param solrDocument the Solr document where to add the attachments data
+     * @param locale the locale for which to index the attachments
+     * @param originalDocument the original document, that should be used to access the attachments
+     */
+    private void setAttachments(SolrInputDocument solrDocument, Locale locale, XWikiDocument originalDocument)
+    {
+        for (XWikiAttachment attachment : originalDocument.getAttachmentList()) {
+            setAttachment(solrDocument, locale, attachment);
+        }
+    }
+
+    /**
+     * Extracts the meta data from the given attachment and adds it to the given Solr document.
+     * 
+     * @param solrDocument the Solr document where to add the attachment data
+     * @param locale the locale for which to index the attachments
+     * @param attachment the attachment to index
+     */
+    private void setAttachment(SolrInputDocument solrDocument, Locale locale, XWikiAttachment attachment)
+    {
+        XWikiContext xcontext = xcontextProvider.get();
+
+        solrDocument.addField(FieldUtils.FILENAME, attachment.getFilename());
+        solrDocument.addField(FieldUtils.MIME_TYPE, attachment.getMimeType(xcontext));
+        solrDocument.addField(FieldUtils.ATTACHMENT_DATE, attachment.getDate());
+        solrDocument.addField(FieldUtils.ATTACHMENT_SIZE, attachment.getFilesize());
+
+        String attachmentTextContent = getContentAsText(attachment);
+        solrDocument.addField(FieldUtils.getFieldName(FieldUtils.ATTACHMENT_CONTENT, locale), attachmentTextContent);
+
+        // Index the full author reference for exact matching (faceting).
+        DocumentReference authorReference =
+            documentReferenceResolver.resolve(attachment.getAuthor(), attachment.getReference());
+        String authorStringReference = entityReferenceSerializer.serialize(authorReference);
+        solrDocument.addField(FieldUtils.ATTACHMENT_AUTHOR, authorStringReference);
+        try {
+            // Index the author display name for free text search.
+            String authorDisplayName = xcontext.getWiki().getUserName(authorStringReference, null, false, xcontext);
+            solrDocument.addField(FieldUtils.ATTACHMENT_AUTHOR_DISPLAY, authorDisplayName);
+        } catch (Exception e) {
+            this.logger.error("Failed to get author display name for attachment [{}]", attachment.getReference(), e);
+        }
     }
 }

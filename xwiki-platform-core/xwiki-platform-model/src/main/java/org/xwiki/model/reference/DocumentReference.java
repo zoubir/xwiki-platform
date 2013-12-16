@@ -37,7 +37,7 @@ public class DocumentReference extends EntityReference
     /**
      * Parameter key for the locale.
      */
-    private static final String LOCALE = "LOCALE";
+    static final String LOCALE = "LOCALE";
 
     /**
      * Special constructor that transforms a generic entity reference into a {@link DocumentReference}. It checks the
@@ -154,6 +154,18 @@ public class DocumentReference extends EntityReference
     public DocumentReference(String pageName, SpaceReference parent)
     {
         super(pageName, EntityType.DOCUMENT, parent);
+    }
+
+    /**
+     * Create a new Document reference from local document reference and wiki reference.
+     * 
+     * @param localDocumentReference the document reference without the wiki reference
+     * @param wikiReference the wiki reference
+     * @since 5.1M1
+     */
+    public DocumentReference(LocalDocumentReference localDocumentReference, WikiReference wikiReference)
+    {
+        super(localDocumentReference, null, wikiReference);
     }
 
     /**

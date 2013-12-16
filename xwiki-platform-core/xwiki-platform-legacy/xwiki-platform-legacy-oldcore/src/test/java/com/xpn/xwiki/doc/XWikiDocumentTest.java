@@ -32,7 +32,7 @@ import java.util.ResourceBundle;
 import java.util.Set;
 import java.util.Vector;
 
-import junit.framework.Assert;
+import org.junit.Assert;
 
 import org.jmock.Mock;
 import org.jmock.core.Invocation;
@@ -73,7 +73,7 @@ import com.xpn.xwiki.web.XWikiMessageTool;
  */
 public class XWikiDocumentTest extends AbstractBridgedXWikiComponentTestCase
 {
-    private static final String DOCWIKI = "Wiki";
+    private static final String DOCWIKI = "WikiDescriptor";
 
     private static final String DOCSPACE = "Space";
 

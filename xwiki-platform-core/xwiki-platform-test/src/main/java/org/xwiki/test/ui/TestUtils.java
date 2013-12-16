@@ -61,6 +61,7 @@ import org.openqa.selenium.support.ui.Wait;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.xwiki.rest.model.jaxb.ObjectFactory;
 import org.xwiki.rest.model.jaxb.Xwiki;
+import org.xwiki.test.integration.XWikiExecutor;
 import org.xwiki.test.ui.po.ViewPage;
 import org.xwiki.test.ui.po.editor.ClassEditPage;
 import org.xwiki.test.ui.po.editor.ObjectEditPage;
@@ -73,17 +74,34 @@ import org.xwiki.test.ui.po.editor.ObjectEditPage;
  */
 public class TestUtils
 {
+    /**
+     * @since 5.0M2
+     */
+    public static final UsernamePasswordCredentials ADMIN_CREDENTIALS = new UsernamePasswordCredentials("Admin",
+        "admin");
+
+    /**
+     * @since 5.1M1
+     */
+    public static final UsernamePasswordCredentials SUPER_ADMIN_CREDENTIALS = new UsernamePasswordCredentials(
+        "superadmin", "pass");
+
+    /**
+     * @since 5.0M2
+     */
+    public static final String BASE_URL = XWikiExecutor.URL + ":" + XWikiExecutor.DEFAULT_PORT + "/xwiki/";
+
+    /**
+     * @since 5.0M2
+     */
+    public static final String BASE_BIN_URL = BASE_URL + "bin/";
+
+    /**
+     * @since 5.0M2
+     */
+    public static final String BASE_REST_URL = BASE_URL + "rest/";
+
     private static PersistentTestContext context;
-
-    private static final String URL = System.getProperty("xe.url", "http://localhost");
-
-    public static final String DEFAULT_PORT = System.getProperty("xwikiPort", "8080");
-
-    private static final String BASE_URL = URL + ":" + DEFAULT_PORT + "/xwiki/";
-
-    private static final String BASE_BIN_URL = BASE_URL + "bin/";
-
-    private static final String BASE_REST_URL = BASE_URL + "rest/";
 
     /**
      * Used to convert Java object into its REST XML representation.
@@ -129,8 +147,7 @@ public class TestUtils
     public TestUtils()
     {
         this.adminHTTPClient = new HttpClient();
-        this.adminHTTPClient.getState()
-            .setCredentials(AuthScope.ANY, new UsernamePasswordCredentials("Admin", "admin"));
+        this.adminHTTPClient.getState().setCredentials(AuthScope.ANY, ADMIN_CREDENTIALS);
         this.adminHTTPClient.getParams().setAuthenticationPreemptive(true);
     }
 
@@ -176,7 +193,12 @@ public class TestUtils
 
     public String getURLToLoginAsAdmin()
     {
-        return getURLToLoginAs("Admin", "admin");
+        return getURLToLoginAs(ADMIN_CREDENTIALS.getUserName(), ADMIN_CREDENTIALS.getPassword());
+    }
+
+    public String getURLToLoginAsSuperAdmin()
+    {
+        return getURLToLoginAs(SUPER_ADMIN_CREDENTIALS.getUserName(), SUPER_ADMIN_CREDENTIALS.getPassword());
     }
 
     public String getURLToLoginAs(final String username, final String password)
@@ -190,7 +212,17 @@ public class TestUtils
      */
     public String getURLToLoginAsAdminAndGotoPage(final String pageURL)
     {
-        return getURLToLoginAndGotoPage("Admin", "admin", pageURL);
+        return getURLToLoginAndGotoPage(ADMIN_CREDENTIALS.getUserName(), ADMIN_CREDENTIALS.getPassword(), pageURL);
+    }
+
+    /**
+     * @param pageURL the URL of the page to go to after logging in.
+     * @return URL to accomplish login and goto.
+     */
+    public String getURLToLoginAsSuperAdminAndGotoPage(final String pageURL)
+    {
+        return getURLToLoginAndGotoPage(SUPER_ADMIN_CREDENTIALS.getUserName(), SUPER_ADMIN_CREDENTIALS.getPassword(),
+            pageURL);
     }
 
     /**
@@ -234,6 +266,7 @@ public class TestUtils
         final String pageURI = pageURL.replaceAll("\\?.*", "");
         waitUntilCondition(new ExpectedCondition<Boolean>()
         {
+            @Override
             public Boolean apply(WebDriver driver)
             {
                 return getDriver().getCurrentUrl().contains(pageURI);
@@ -266,22 +299,41 @@ public class TestUtils
         return loggedInUserName;
     }
 
+    public void createUserAndLogin(final String username, final String password, Object... properties)
+    {
+        createUserAndLoginWithRedirect(username, password, getURLToNonExistentPage(), properties);
+    }
+
+    public void createUserAndLoginWithRedirect(final String username, final String password, String url,
+        Object... properties)
+    {
+        createUser(username, password, getURLToLoginAndGotoPage(username, password, url), properties);
+    }
+
+    public void createUser(final String username, final String password, String redirectURL, Object... properties)
+    {
+        Map<String, String> parameters = new HashMap<String, String>();
+        parameters.put("register", "1");
+        parameters.put("xwikiname", username);
+        parameters.put("register_password", password);
+        parameters.put("register2_password", password);
+        parameters.put("register_email", "");
+        parameters.put("xredirect", redirectURL);
+        parameters.put("form_token", getSecretToken());
+        getDriver().get(getURL("XWiki", "Register", "register", parameters));
+        recacheSecretToken();
+        if (properties.length > 0) {
+            updateObject("XWiki", username, "XWiki.XWikiUsers", 0, properties);
+        }
+    }
+
+    /**
+     * @deprecated starting with 5.0M2 use {@link #createUserAndLogin(String, String, Object...)} instead
+     */
+    @Deprecated
     public void registerLoginAndGotoPage(final String username, final String password, final String pageURL)
     {
-        String registerURL = getURL("XWiki", "Register", "register", new HashMap<String, String>()
-        {
-            {
-                put("register", "1");
-                put("xwikiname", username);
-                put("register_password", password);
-                put("register2_password", password);
-                put("register_email", "");
-                put("xredirect", getURLToLoginAndGotoPage(username, password, getURLToNonExistentPage()));
-                put("form_token", getSecretToken());
-            }
-        });
-        getDriver().get(registerURL);
-        recacheSecretToken();
+        createUserAndLogin(username, password);
         getDriver().get(pageURL);
     }
 
@@ -312,7 +364,12 @@ public class TestUtils
     public void gotoPage(String space, String page, String action, String queryString)
     {
         // Only navigate if the current URL is different from the one to go to, in order to improve performances.
-        String url = getURL(space, page, action, queryString);
+        gotoPage(getURL(space, page, action, queryString));
+    }
+
+    public void gotoPage(String url)
+    {
+        // Only navigate if the current URL is different from the one to go to, in order to improve performances.
         if (!getDriver().getCurrentUrl().equals(url)) {
             getDriver().get(url);
         }
@@ -321,6 +378,16 @@ public class TestUtils
     public String getURLToDeletePage(String space, String page)
     {
         return getURL(space, page, "delete", "confirm=1");
+    }
+
+    /**
+     * @param space the name of the space to delete
+     * @return the URL that can be used to delete the specified pace
+     * @since 4.5
+     */
+    public String getURLToDeleteSpace(String space)
+    {
+        return getURL(space, "WebHome", "deletespace", "confirm=1");
     }
 
     public ViewPage createPage(String space, String page, String content, String title)
@@ -353,9 +420,62 @@ public class TestUtils
         return new ViewPage();
     }
 
+    /**
+     * @since 5.1M2
+     */
+    public ViewPage createPageWithAttachment(String space, String page, String content, String title, String syntaxId,
+        String parentFullPageName, String attachmentName, InputStream attachmentData) throws Exception
+    {
+        return createPageWithAttachment(space, page, content, title, syntaxId, parentFullPageName, attachmentName,
+            attachmentData, null);
+    }
+
+    /**
+     * @since 5.1M2
+     */
+    public ViewPage createPageWithAttachment(String space, String page, String content, String title, String syntaxId,
+        String parentFullPageName, String attachmentName, InputStream attachmentData,
+        UsernamePasswordCredentials credentials) throws Exception
+    {
+        ViewPage vp = createPage(space, page, content, title, syntaxId, parentFullPageName);
+        attachFile(space, page, attachmentName, attachmentData, false, credentials);
+        return vp;
+    }
+
+    /**
+     * @since 5.1M2
+     */
+    public ViewPage createPageWithAttachment(String space, String page, String content, String title,
+        String attachmentName, InputStream attachmentData) throws Exception
+    {
+        return createPageWithAttachment(space, page, content, title, null, null, attachmentName, attachmentData);
+    }
+
+    /**
+     * @since 5.1M2
+     */
+    public ViewPage createPageWithAttachment(String space, String page, String content, String title,
+        String attachmentName, InputStream attachmentData, UsernamePasswordCredentials credentials) throws Exception
+    {
+        ViewPage vp = createPage(space, page, content, title);
+        attachFile(space, page, attachmentName, attachmentData, false, credentials);
+        return vp;
+    }
+
     public void deletePage(String space, String page)
     {
         getDriver().get(getURLToDeletePage(space, page));
+    }
+
+    /**
+     * Accesses the URL to delete the specified space.
+     * 
+     * @param space the name of the space to delete
+     * @since 4.5
+     */
+    public void deleteSpace(String space)
+    {
+        getDriver().get(getURLToDeleteSpace(space));
     }
 
     public boolean pageExists(String space, String page)
@@ -608,7 +728,12 @@ public class TestUtils
 
     public boolean isInViewMode()
     {
-        return getDriver().findElements(By.xpath("//div[@id='tmEdit']")).size() > 0;
+        return getDriver().findElements(By.id("tmEdit")).size() > 0;
+    }
+
+    public boolean isInSourceViewMode()
+    {
+        return getDriver().findElements(By.xpath("//textarea[@class = 'wiki-code']")).size() > 0;
     }
 
     public boolean isInInlineEditMode()
@@ -919,6 +1044,18 @@ public class TestUtils
         }
     }
 
+    /**
+     * @since 5.1M2
+     */
+    public void attachFile(String space, String page, String name, InputStream is, boolean failIfExists,
+        UsernamePasswordCredentials credentials) throws Exception
+    {
+        if (credentials != null) {
+            this.adminHTTPClient.getState().setCredentials(AuthScope.ANY, credentials);
+        }
+        attachFile(space, page, name, is, failIfExists);
+    }
+
     public void attachFile(String space, String page, String name, InputStream is, boolean failIfExists)
         throws Exception
     {
@@ -1001,7 +1138,7 @@ public class TestUtils
             is.close();
         }
 
-        return (T) resource;
+        return resource;
     }
 
     protected GetMethod executeGet(String uri, int expectedCode) throws Exception

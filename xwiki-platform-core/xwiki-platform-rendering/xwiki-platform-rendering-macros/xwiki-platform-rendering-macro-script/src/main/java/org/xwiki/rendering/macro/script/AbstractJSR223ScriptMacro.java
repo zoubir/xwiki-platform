@@ -37,7 +37,11 @@ import org.apache.commons.lang3.StringUtils;
 import org.xwiki.component.phase.InitializationException;
 import org.xwiki.context.ExecutionContext;
 import org.xwiki.rendering.block.Block;
+import org.xwiki.rendering.block.MetaDataBlock;
 import org.xwiki.rendering.block.XDOM;
+import org.xwiki.rendering.block.Block.Axes;
+import org.xwiki.rendering.block.match.MetadataBlockMatcher;
+import org.xwiki.rendering.listener.MetaData;
 import org.xwiki.rendering.macro.MacroExecutionException;
 import org.xwiki.rendering.macro.descriptor.ContentDescriptor;
 import org.xwiki.rendering.transformation.MacroTransformationContext;
@@ -206,6 +210,15 @@ public abstract class AbstractJSR223ScriptMacro<P extends JSR223ScriptMacroParam
 
         StringWriter stringWriter = new StringWriter();
 
+        // Set standard javax.script.filename property
+        MetaDataBlock metaDataBlock =
+            context.getCurrentMacroBlock().getFirstBlock(new MetadataBlockMatcher(MetaData.SOURCE),
+                Axes.ANCESTOR_OR_SELF);
+        if (metaDataBlock != null) {
+            scriptContext.setAttribute(ScriptEngine.FILENAME, metaDataBlock.getMetaData()
+                .getMetaData(MetaData.SOURCE), ScriptContext.ENGINE_SCOPE);
+        }
+
         // set writer in script context
         scriptContext.setWriter(stringWriter);
 
@@ -234,9 +247,8 @@ public abstract class AbstractJSR223ScriptMacro<P extends JSR223ScriptMacroParam
     /**
      * @param engineName the script engine name (eg "groovy", etc)
      * @return the Script engine to use to evaluate the script
-     * @throws MacroExecutionException in case of an error in parsing the jars parameter
      */
-    private ScriptEngine getScriptEngine(String engineName) throws MacroExecutionException
+    private ScriptEngine getScriptEngine(String engineName)
     {
         // Look for a script engine in the Execution Context since we want the same engine to be used
         // for all evals during the same execution lifetime.

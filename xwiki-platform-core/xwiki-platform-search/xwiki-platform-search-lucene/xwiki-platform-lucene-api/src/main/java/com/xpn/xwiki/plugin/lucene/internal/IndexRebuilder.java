@@ -41,7 +41,6 @@ import org.xwiki.context.Execution;
 import org.xwiki.context.ExecutionContext;
 import org.xwiki.model.reference.DocumentReference;
 
-import com.xpn.xwiki.XWiki;
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
 import com.xpn.xwiki.doc.XWikiDocument;
@@ -258,19 +257,12 @@ public class IndexRebuilder extends AbstractXWikiRunnable
         Collection<String> wikiServers = this.wikis;
 
         if (wikiServers == null) {
-            XWiki xwiki = context.getWiki();
-            if (xwiki.isVirtualMode()) {
-                wikiServers = findWikiServers(context);
-                if (LOGGER.isDebugEnabled()) {
-                    LOGGER.debug("found [{}] virtual wikis:", wikiServers.size());
-                    for (String wikiName : wikiServers) {
-                        LOGGER.debug(wikiName);
-                    }
+            wikiServers = findWikiServers(context);
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("found [{}] virtual wikis:", wikiServers.size());
+                for (String wikiName : wikiServers) {
+                    LOGGER.debug(wikiName);
                 }
-            } else {
-                // No virtual wiki configuration, just index the wiki the context belongs to
-                wikiServers = new ArrayList<String>();
-                wikiServers.add(context.getDatabase());
             }
         }
 
@@ -402,10 +394,6 @@ public class IndexRebuilder extends AbstractXWikiRunnable
 
         try {
             retval = context.getWiki().getVirtualWikisDatabaseNames(context);
-
-            if (!retval.contains(context.getMainXWiki())) {
-                retval.add(context.getMainXWiki());
-            }
         } catch (Exception e) {
             LOGGER.error("Error getting list of wiki servers!", e);
         }

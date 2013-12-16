@@ -15,8 +15,7 @@
   <date>1251108485000</date>
   <contentUpdateDate>1251108485000</contentUpdateDate>
   <version>1.1</version>
-  <title>$msg.get('xe.themes.colors.template.title')</title>
-  <template/>
+  <title>$services.localization.render('xe.themes.colors.template.title')</title>
   <defaultTemplate/>
   <validationScript/>
   <comment/>
@@ -775,5 +774,5 @@
       <titleColor>#4D5860</titleColor>
     </property>
   </object>
-  <content>{{include document="ColorThemes.ColorThemeSheet"/}}</content>
+  <content/>
 </xwikidoc>

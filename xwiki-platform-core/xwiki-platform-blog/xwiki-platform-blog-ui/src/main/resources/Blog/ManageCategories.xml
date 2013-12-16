@@ -15,7 +15,7 @@
   <date>1304081827000</date>
   <contentUpdateDate>1304081827000</contentUpdateDate>
   <version>1.1</version>
-  <title>$msg.get('xe.blog.manageCategories.title')</title>
+  <title>$services.localization.render('xe.blog.manageCategories.title')</title>
   <template/>
   <defaultTemplate/>
   <validationScript/>
@@ -170,7 +170,7 @@ XWiki.blog.Categories = Class.create({
             onCreate : function () {
               // ignore "cascade" clicks
               parent.disabled = true;
-              parent.notification = new XWiki.widgets.Notification("$msg.get('xe.blog.manageCategories.js.fetchingForm')", "inprogress");
+              parent.notification = new XWiki.widgets.Notification("$services.localization.render('xe.blog.manageCategories.js.fetchingForm')", "inprogress");
             },
             onSuccess : function (response) {
               var container = new Element("div");
@@ -180,7 +180,7 @@ XWiki.blog.Categories = Class.create({
               this.insertRenameForm(item, parent._x_rename_form);
             }.bind(this),
             onFailure : function (response) {
-              new XWiki.widgets.Notification(response.responseText || "$msg.get('core.widgets.ajaxRequest.error.noServer')", "error");
+              new XWiki.widgets.Notification(response.responseText || "$services.localization.render('core.widgets.ajaxRequest.error.noServer')", "error");
             },
             // 0 is returned for network failures, except on IE where a strange large number (12031) is returned.
             on0 : function(response) {
@@ -218,7 +218,7 @@ XWiki.blog.Categories = Class.create({
             onCreate : function () {
               // ignore "cascade" clicks
               form.disable();
-              form.notification = new XWiki.widgets.Notification("$msg.get('xe.blog.manageCategories.js.rename.inProgress')", "inprogress");
+              form.notification = new XWiki.widgets.Notification("$services.localization.render('xe.blog.manageCategories.js.rename.inProgress')", "inprogress");
             },
             onSuccess : function (response) {
               $$(".blog-categories-list").first().replace(response.responseText);
@@ -226,20 +226,20 @@ XWiki.blog.Categories = Class.create({
               form.reset();
             }.bind(this),
             onFailure : function (response) {
-              new XWiki.widgets.Notification(response.responseText || "$msg.get('core.widgets.ajaxRequest.error.noServer')", "error");
+              new XWiki.widgets.Notification(response.responseText || "$services.localization.render('core.widgets.ajaxRequest.error.noServer')", "error");
             },
             onComplete : function () {
               form.enable();
               form.notification.hide();
             },
             on403 : function(response) {
-              new XWiki.widgets.Notification("$msg.get('xe.blog.manageCategories.js.rename.error.403')", "error");
+              new XWiki.widgets.Notification("$services.localization.render('xe.blog.manageCategories.js.rename.error.403')", "error");
             },
             on404 : function(response) {
-              new XWiki.widgets.Notification("$msg.get('xe.blog.manageCategories.js.rename.error.404')", "error");
+              new XWiki.widgets.Notification("$services.localization.render('xe.blog.manageCategories.js.rename.error.404')", "error");
             },
             on409 : function(response) {
-              new XWiki.widgets.Notification("$msg.get('xe.blog.manageCategories.js.rename.error.409')", "error");
+              new XWiki.widgets.Notification("$services.localization.render('xe.blog.manageCategories.js.rename.error.409')", "error");
             },
             // 0 is returned for network failures, except on IE where a strange large number (12031) is returned.
             on0 : function(response) {
@@ -292,15 +292,26 @@ XWiki.blog.Categories = Class.create({
   },
   createAddSubcategoryForm : function (item) {
     var parent = item.up('.blog-categories-list');
+    var ajaxParams = {};
+    var urlParams = item.getAttribute('href').toQueryParams();
+    var entry = urlParams.entry;
+    if(entry &amp;&amp; entry != '') {
+      ajaxParams['entry'] = entry;
+    }
+    var entryObjNb = urlParams.entryObjNb;
+    if(entryObjNb &amp;&amp; entryObjNb != '') {
+      ajaxParams['entryObjNb'] = entryObjNb;
+    }
     if (!parent._x_add_form) {
       if (!parent.disabled) {
         new Ajax.Request(
           "$doc.getURL('view', 'xpage=plain&amp;display=addForm&amp;ajax=1')",
           {
+            parameters : ajaxParams,
             onCreate : function () {
               // ignore "cascade" clicks
               parent.disabled = true;
-              parent.notification = new XWiki.widgets.Notification("$msg.get('xe.blog.manageCategories.js.fetchingForm')", "inprogress");
+              parent.notification = new XWiki.widgets.Notification("$services.localization.render('xe.blog.manageCategories.js.fetchingForm')", "inprogress");
             },
             onSuccess : function (response) {
               var container = new Element("div");
@@ -310,7 +321,7 @@ XWiki.blog.Categories = Class.create({
               this.insertAddForm(item, parent._x_add_form);
             }.bind(this),
             onFailure : function (response) {
-              new XWiki.widgets.Notification(response.responseText || "$msg.get('core.widgets.ajaxRequest.error.noServer')", "error");
+              new XWiki.widgets.Notification(response.responseText || "$services.localization.render('core.widgets.ajaxRequest.error.noServer')", "error");
             },
             // 0 is returned for network failures, except on IE where a strange large number (12031) is returned.
             on0 : function(response) {
@@ -346,6 +357,11 @@ XWiki.blog.Categories = Class.create({
     this.activateForm(form);
   },
   ajaxifyAddForm : function(form) {
+    var params = 'ajax=1&amp;xpage=plain&amp;';
+    var separator = '?';
+    if(form.action.toQueryParams().entry)
+      separator = '&amp;';
+    params = separator + params;
     form.setAttribute('autocomplete', 'off');
     form.down('input[type=text]').setAttribute('autocomplete', 'off');
     form.down('input[type=text]').setAttribute('autocomplete', 'off');
@@ -355,15 +371,15 @@ XWiki.blog.Categories = Class.create({
       if (form.newCategoryName.value != '') {
         new Ajax.Request(
           #if("$!{request.mode}" == 'select')
-            form.action + '?ajax=1&amp;xpage=plain&amp;mode=select&amp;' + form.serialize(),
+            form.action + params + 'mode=select&amp;' + form.serialize(),
           #else
-            form.action + '?ajax=1&amp;xpage=plain&amp;' + form.serialize(),
+            form.action + params + form.serialize(),
           #end
           {
             onCreate : function () {
               // ignore "cascade" clicks
               form.disable();
-              form.notification = new XWiki.widgets.Notification("$msg.get('xe.blog.manageCategories.js.add.inProgress')", "inprogress");
+              form.notification = new XWiki.widgets.Notification("$services.localization.render('xe.blog.manageCategories.js.add.inProgress')", "inprogress");
             },
             onSuccess : function (response) {
               /* var reference = form._x_item.up('.blog-category-level');
@@ -372,25 +388,40 @@ XWiki.blog.Categories = Class.create({
                 reference.insert({after : response.responseText});
                 this.initialize();
               }*/
+              var checkedCategories = [];
+                $$(".blog-categories-list").each(function(item){
+                  item.select('input[type=checkbox]').each(function(input){
+                    if(input.checked){
+                      checkedCategories.push(input.value);
+                    }
+                });
+              });
               $$(".blog-categories-list").first().replace(response.responseText);
               this.initialize();
               form.reset();
+              $$(".blog-categories-list").each(function(item){
+                item.select('input[type=checkbox]').each(function(input){
+                  if(!input.checked &amp;&amp; checkedCategories.contains(input.value)){
+                    input.checked = true;
+                  }
+                });
+              });
             }.bind(this),
             onFailure : function (response) {
-              new XWiki.widgets.Notification(response.responseText || "$msg.get('core.widgets.ajaxRequest.error.noServer')", "error");
+              new XWiki.widgets.Notification(response.responseText || "$services.localization.render('core.widgets.ajaxRequest.error.noServer')", "error");
             },
             onComplete : function () {
               form.enable();
               form.notification.hide();
             },
             on401 : function(response) {
-              new XWiki.widgets.Notification("$msg.get('xe.blog.manageCategories.js.add.error.401')", "error");
+              new XWiki.widgets.Notification("$services.localization.render('xe.blog.manageCategories.js.add.error.401')", "error");
             },
             on403 : function(response) {
-              new XWiki.widgets.Notification("$msg.get('xe.blog.manageCategories.js.add.error.403')", "error");
+              new XWiki.widgets.Notification("$services.localization.render('xe.blog.manageCategories.js.add.error.403')", "error");
             },
             on409 : function(response) {
-              new XWiki.widgets.Notification("$msg.get('xe.blog.manageCategories.js.add.error.409')", "error");
+              new XWiki.widgets.Notification("$services.localization.render('xe.blog.manageCategories.js.add.error.409')", "error");
             },
             // 0 is returned for network failures, except on IE where a strange large number (12031) is returned.
             on0 : function(response) {
@@ -449,10 +480,10 @@ XWiki.blog.Categories = Class.create({
             },
             /* Interaction parameters */
             {
-               confirmationText: "$msg.get('xe.blog.manageCategories.js.delete.confirm')",
-               progressMessageText : "$msg.get('xe.blog.manageCategories.js.delete.inProgress')",
-               successMessageText : "$msg.get('xe.blog.manageCategories.js.delete.done')",
-               failureMessageText : "$msg.get('xe.blog.manageCategories.js.delete.failed')"
+               confirmationText: "$services.localization.render('xe.blog.manageCategories.js.delete.confirm')",
+               progressMessageText : "$services.localization.render('xe.blog.manageCategories.js.delete.inProgress')",
+               successMessageText : "$services.localization.render('xe.blog.manageCategories.js.delete.done')",
+               failureMessageText : "$services.localization.render('xe.blog.manageCategories.js.delete.failed')"
             }
           );
         }
@@ -701,14 +732,14 @@ input.category-name-input {
     #set($newCategoryParent = $escapetool.url($request.newCategoryParent))
     #if($request.ajax)
       #if("$!{request.mode}" == 'select')
-        #set($xredirect = ${doc.getURL('view', "xpage=plain&amp;display=list&amp;listType=selectable&amp;root=${newCategoryParent}")})
+        #set($xredirect = ${doc.getURL('view', "xpage=plain&amp;display=list&amp;listType=selectable&amp;root=${newCategoryParent}&amp;entry=$!{request.entry}&amp;entryObjNb=$!{request.entryObjNb}")})
       #else
-        #set($xredirect = ${doc.getURL('view', "xpage=plain&amp;display=list&amp;root=${newCategoryParent}")})
-      #end
-      $response.sendRedirect($xwiki.getURL($name, 'save', "template=${blogCategoryTemplate}&amp;parent=${newCategoryParent}&amp;${blogCategoryClassname}_0_name=${title}&amp;${blogCategoryClassname}_0_description=&amp;xredirect=${escapetool.url($xredirect)}&amp;form_token=$!{services.csrf.getToken()}"))
+        #set($xredirect = ${doc.getURL('view', "xpage=plain&amp;display=list&amp;root=${newCategoryParent}&amp;entry=$!{request.entry}&amp;entryObjNb=$!{request.entryObjNb}")})
+      #end      
     #else ## request.ajax
-      $response.sendRedirect($xwiki.getURL($name, 'save', "template=${blogCategoryTemplate}&amp;parent=${newCategoryParent}&amp;${blogCategoryClassname}_0_name=${title}&amp;${blogCategoryClassname}_0_description=&amp;xredirect=${escapetool.url(${doc.getURL()})}&amp;form_token=$!{services.csrf.getToken()}"))
+      #set($xredirect = $escapetool.url($doc.getURL('view', "entry=$!{request.entry}&amp;entryObjNb=$!{request.entryObjNb}")))
     #end
+    $response.sendRedirect($xwiki.getURL($name, 'save', "template=${blogCategoryTemplate}&amp;parent=${newCategoryParent}&amp;${blogCategoryClassname}_0_name=${title}&amp;${blogCategoryClassname}_0_description=&amp;xredirect=${escapetool.url($xredirect)}&amp;xhidden=1&amp;form_token=$!{services.csrf.getToken()}"))
   #end ## empty title
 #end
 #####################################################

@@ -19,22 +19,23 @@
  */
 package org.xwiki.search.solr.internal.metadata;
 
-import java.io.InputStream;
-import java.util.List;
+import java.util.Locale;
 
+import javax.inject.Inject;
 import javax.inject.Named;
+import javax.inject.Singleton;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.solr.common.SolrInputDocument;
-import org.apache.tika.Tika;
-import org.apache.tika.metadata.Metadata;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.model.reference.AttachmentReference;
 import org.xwiki.model.reference.DocumentReference;
+import org.xwiki.model.reference.DocumentReferenceResolver;
 import org.xwiki.model.reference.EntityReference;
-import org.xwiki.search.solr.internal.api.Fields;
-import org.xwiki.search.solr.internal.api.SolrIndexException;
+import org.xwiki.model.reference.EntityReferenceSerializer;
+import org.xwiki.search.solr.internal.api.FieldUtils;
 
+import com.xpn.xwiki.XWikiContext;
+import com.xpn.xwiki.doc.XWikiAttachment;
 import com.xpn.xwiki.doc.XWikiDocument;
 
 /**
@@ -45,115 +46,91 @@ import com.xpn.xwiki.doc.XWikiDocument;
  */
 @Component
 @Named("attachment")
+@Singleton
 public class AttachmentSolrMetadataExtractor extends AbstractSolrMetadataExtractor
 {
+    @Inject
+    private EntityReferenceSerializer<String> entityReferenceSerializer;
+
+    /**
+     * Used to resolve the attachment author reference because {@link XWikiAttachment} doesn't have a method to return
+     * the author reference.
+     */
+    @Inject
+    private DocumentReferenceResolver<String> documentReferenceResolver;
+
     @Override
-    public SolrInputDocument getSolrDocument(EntityReference entityReference) throws SolrIndexException,
-        IllegalArgumentException
+    public boolean setFieldsInternal(LengthSolrInputDocument solrDocument, EntityReference entityReference)
+        throws Exception
     {
         AttachmentReference attachmentReference = new AttachmentReference(entityReference);
 
-        try {
-            SolrInputDocument solrDocument = new SolrInputDocument();
-
-            DocumentReference documentReference = attachmentReference.getDocumentReference();
-
-            solrDocument.addField(Fields.ID, getId(attachmentReference));
-            addDocumentFields(documentReference, solrDocument);
-            solrDocument.addField(Fields.TYPE, attachmentReference.getType().name());
-            solrDocument.addField(Fields.FILENAME, attachmentReference.getName());
-            solrDocument.addField(Fields.MIME_TYPE, getMimeType(attachmentReference));
-
-            addLanguageAndContentFields(documentReference, solrDocument, attachmentReference);
-
-            return solrDocument;
-        } catch (Exception e) {
-            throw new SolrIndexException(String.format("Failed to get Solr document for '%s'",
-                serializer.serialize(attachmentReference)), e);
+        XWikiDocument document = getDocument(attachmentReference.getDocumentReference());
+        XWikiAttachment attachment = document.getAttachment(attachmentReference.getName());
+        if (attachment == null) {
+            return false;
         }
+
+        XWikiContext xcontext = xcontextProvider.get();
+
+        solrDocument.setField(FieldUtils.FILENAME, attachment.getFilename());
+        solrDocument.setField(FieldUtils.FILENAME_SORT, attachment.getFilename());
+        solrDocument.setField(FieldUtils.MIME_TYPE, attachment.getMimeType(xcontext));
+        solrDocument.setField(FieldUtils.ATTACHMENT_DATE, attachment.getDate());
+        // We need to add a dedicated sort field because the corresponding field is multiValued and thus cannot be used
+        // for sorting (the reason it is multiValued is because it is 'reused' on document rows and documents can have
+        // multiple attachments).
+        solrDocument.setField(FieldUtils.ATTACHMENT_DATE_SORT, attachment.getDate());
+        solrDocument.setField(FieldUtils.ATTACHMENT_SIZE, attachment.getFilesize());
+        solrDocument.setField(FieldUtils.ATTACHMENT_SIZE_SORT, attachment.getFilesize());
+        // We need to index the attachment version (revision) to be able to detect when the search index is out of date
+        // (not in sync with the database).
+        solrDocument.setField(FieldUtils.ATTACHMENT_VERSION, attachment.getVersion());
+
+        // Index the full author reference for exact matching (faceting).
+        DocumentReference authorReference =
+            documentReferenceResolver.resolve(attachment.getAuthor(), attachment.getReference());
+        String authorStringReference = entityReferenceSerializer.serialize(authorReference);
+        solrDocument.setField(FieldUtils.ATTACHMENT_AUTHOR, authorStringReference);
+        try {
+            // Index the author display name for free text search and results sorting.
+            String authorDisplayName = xcontext.getWiki().getUserName(authorStringReference, null, false, xcontext);
+            solrDocument.setField(FieldUtils.ATTACHMENT_AUTHOR_DISPLAY, authorDisplayName);
+            solrDocument.setField(FieldUtils.ATTACHMENT_AUTHOR_DISPLAY_SORT, authorDisplayName);
+        } catch (Exception e) {
+            this.logger.error("Failed to get author display name for attachment [{}]", attachment.getReference(), e);
+        }
+
+        setLocaleAndContentFields(attachment, solrDocument);
+
+        return true;
     }
 
     /**
-     * Set the language to all the translations that the owning document has. This ensures that this entity is found for
+     * Set the locale to all the translations that the owning document has. This ensures that this entity is found for
      * all the translations of a document, not just the original document.
      * <p/>
-     * Also, index the content with each language so that the right analyzer is used.
+     * Also, index the content with each locale so that the right analyzer is used.
      * 
-     * @param documentReference the original document's reference.
+     * @param attachment the attachment.
      * @param solrDocument the Solr document where to add the fields.
-     * @param attachmentReference the attachment's reference.
      * @throws Exception if problems occur.
      */
-    protected void addLanguageAndContentFields(DocumentReference documentReference, SolrInputDocument solrDocument,
-        AttachmentReference attachmentReference) throws Exception
+    protected void setLocaleAndContentFields(XWikiAttachment attachment, SolrInputDocument solrDocument)
+        throws Exception
     {
-        XWikiDocument originalDocument = getDocument(documentReference);
+        String attachmentTextContent = getContentAsText(attachment);
 
-        // Get all the languages in which the document is available.
-        List<String> documentLanguages = originalDocument.getTranslationList(getXWikiContext());
-        // Make sure that the original document's language is there as well.
-        String originalDocumentLanguage = getLanguage(documentReference);
-        if (!documentLanguages.contains(originalDocumentLanguage)) {
-            documentLanguages.add(originalDocumentLanguage);
-        }
+        // Do the work for each locale.
+        for (Locale documentLocale : getLocales(attachment.getDoc(), null)) {
+            solrDocument.addField(FieldUtils.LOCALES, documentLocale.toString());
 
-        String attachmentTextContent = getContentAsText(attachmentReference);
-        // Do the work for each language.
-        for (String documentLanguage : documentLanguages) {
-            if (!documentLanguage.equals(originalDocumentLanguage)) {
-                // The original document's language is already set by the call to the addDocumentFields method.
-                solrDocument.addField(Fields.LANGUAGE, documentLanguage);
-            }
-
-            solrDocument.addField(
-                String.format(Fields.MULTILIGNUAL_FORMAT, Fields.ATTACHMENT_CONTENT, documentLanguage),
+            solrDocument.setField(FieldUtils.getFieldName(FieldUtils.ATTACHMENT_CONTENT, documentLocale),
                 attachmentTextContent);
         }
 
-        // We can`t rely on the schema's copyField here because we would trigger it for each language. Doing the copy to
+        // We can't rely on the schema's copyField here because we would trigger it for each language. Doing the copy to
         // the text_general field manually.
-        solrDocument.addField(
-            String.format(Fields.MULTILIGNUAL_FORMAT, Fields.ATTACHMENT_CONTENT, Fields.MULTILINGUAL),
-            attachmentTextContent);
-    }
-
-    /**
-     * Tries to extract text indexable content from a generic attachment.
-     * 
-     * @param attachment reference to the attachment.
-     * @return the text representation of the attachment's content.
-     * @throws SolrIndexException if problems occur.
-     */
-    protected String getContentAsText(AttachmentReference attachment) throws SolrIndexException
-    {
-        try {
-            Tika tika = new Tika();
-
-            Metadata metadata = new Metadata();
-            metadata.set(Metadata.RESOURCE_NAME_KEY, attachment.getName());
-
-            InputStream in = documentAccessBridge.getAttachmentContent(attachment);
-
-            String result = StringUtils.lowerCase(tika.parseToString(in, metadata));
-
-            return result;
-        } catch (Exception e) {
-            throw new SolrIndexException(String.format("Failed to retrieve attachment content for '%s'",
-                serializer.serialize(attachment)), e);
-        }
-    }
-
-    /**
-     * @param reference to the attachment
-     * @return the mimetype of the attachment's content.
-     */
-    protected String getMimeType(AttachmentReference reference)
-    {
-        String mimetype = getXWikiContext().getEngineContext().getMimeType(reference.getName().toLowerCase());
-        if (mimetype != null) {
-            return mimetype;
-        } else {
-            return "application/octet-stream";
-        }
+        solrDocument.setField(FieldUtils.getFieldName(FieldUtils.ATTACHMENT_CONTENT, null), attachmentTextContent);
     }
 }

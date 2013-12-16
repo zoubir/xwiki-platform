@@ -683,6 +683,7 @@ public class DefaultRepositoryManager implements RepositoryManager, Initializabl
         BaseObject extensionProxyObject = document.getXObject(XWikiRepositoryModel.EXTENSIONPROXY_CLASSREFERENCE);
         if (extensionProxyObject == null) {
             extensionProxyObject = document.newXObject(XWikiRepositoryModel.EXTENSIONPROXY_CLASSREFERENCE, xcontext);
+            extensionProxyObject.setIntValue(XWikiRepositoryModel.PROP_PROXY_AUTOUPDATE, 1);
             needSave = true;
         }
 
@@ -778,9 +779,11 @@ public class DefaultRepositoryManager implements RepositoryManager, Initializabl
         String authorId = resolveAuthorIdOnWiki(xcontext.getDatabase(), authorName, authorElements, xcontext);
 
         if (authorId == null && !xcontext.isMainWiki()) {
-            authorId =
-                xcontext.getMainXWiki() + ':'
-                    + resolveAuthorIdOnWiki(xcontext.getMainXWiki(), authorName, authorElements, xcontext);
+            authorId = resolveAuthorIdOnWiki(xcontext.getMainXWiki(), authorName, authorElements, xcontext);
+
+            if (authorId != null) {
+                authorId = xcontext.getMainXWiki() + ':' + authorId;
+            }
         }
 
         return authorId != null ? authorId : authorName;

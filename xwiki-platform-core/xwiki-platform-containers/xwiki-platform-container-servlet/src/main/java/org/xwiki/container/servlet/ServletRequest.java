@@ -24,14 +24,12 @@ import java.util.Arrays;
 import java.util.List;
 
 import org.xwiki.container.Request;
-import org.xwiki.url.XWikiURL;
 
 import javax.servlet.http.HttpServletRequest;
 
 public class ServletRequest implements Request
 {
     private HttpServletRequest httpServletRequest;
-    private XWikiURL xwikiURL;
 
     public ServletRequest(HttpServletRequest httpServletRequest)
     {
@@ -41,16 +39,6 @@ public class ServletRequest implements Request
     public HttpServletRequest getHttpServletRequest()
     {
         return this.httpServletRequest;
-    }
-
-    public XWikiURL getURL()
-    {
-        return this.xwikiURL;
-    }
-
-    public void setXWikiURL(XWikiURL url)
-    {
-        this.xwikiURL = url;
     }
 
     @Override
@@ -73,7 +61,10 @@ public class ServletRequest implements Request
         List<Object> result = new ArrayList<Object>();
 
         // Look first in the Query Parameters and then in the Query Attributes
-        result.addAll(Arrays.asList(this.httpServletRequest.getParameterValues(key)));
+        Object[] requestParameters = this.httpServletRequest.getParameterValues(key);
+        if (requestParameters != null) {
+            result.addAll(Arrays.asList(requestParameters));
+        }
         result.add(this.httpServletRequest.getAttribute(key));
 
         return result;

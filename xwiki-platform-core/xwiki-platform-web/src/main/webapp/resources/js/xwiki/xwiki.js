@@ -237,13 +237,10 @@ Object.extend(XWiki, {
    * Otherwise make all the document's body errors expandable.
    */
   makeRenderingErrorsExpandable: function(content) {
-    if (typeof content == "undefined") {
-      content = document.body;
-    }
-    $(content).select(".xwikirenderingerror").each(function(error) {
+    $(content || 'body').select(".xwikirenderingerror").each(function(error) {
         if(error.next().innerHTML !== "" && error.next().hasClassName("xwikirenderingerrordescription")) {
             error.style.cursor="pointer";
-            error.title = "$msg.get('platform.core.rendering.error.readTechnicalInformation')";
+            error.title = "$services.localization.render('platform.core.rendering.error.readTechnicalInformation')";
             Event.observe(error, "click", function(event){
                    event.element().next().toggleClassName("hidden");
             });
@@ -262,10 +259,7 @@ Object.extend(XWiki, {
     // avoid having it saved by the wysiwyg afterwards. Actually it should be anything different from edit or inline,
     // but like this is consistent with the next function, for section editing.
     if (XWiki.contextaction == "view" || XWiki.contextaction == "preview") {
-      if (typeof content == "undefined") {
-        content = document.body;
-      }
-      var anchors = content.select("a[rel]");
+      var anchors = $(content || 'body').select("a[rel]");
       for (var i = 0; i < anchors.length; i++) {
           var anchor = anchors[i];
           if (anchor.getAttribute("href") && anchor.getAttribute("rel")) {
@@ -289,19 +283,20 @@ Object.extend(XWiki, {
   /**
    * Insert a link for editing sections.
    */
-  insertSectionEditLinks: function() {
+  insertSectionEditLinks: function(container) {
       // Insert links only in view mode and for documents not in xwiki/1.0 syntax
       if (XWiki.docsyntax != "xwiki/1.0" && XWiki.contextaction == "view" && XWiki.hasEdit) {
 
           // Section count starts at one, not zero.
           var sectioncount = 1;
 
-          // We can't use element.select() since it does not keep the order of the elements in the flow.
-          var nodes = $("xwikicontent");
-          if (!nodes) {
+          container = $(container || 'body');
+          container = container.id == 'xwikicontent' ? container : container.down('#xwikicontent');
+          if (!container) {
             return;
           }
-          nodes = nodes.childNodes;
+          // We can't use element.select() since it does not keep the order of the elements in the flow.
+          var nodes = container.childNodes;
 
           // Only allow section editing for the specified depth level (2 by default)
           var headerPattern = new RegExp("H[1-" + $xwiki.getSectionEditingDepth() + "]");
@@ -313,12 +308,23 @@ Object.extend(XWiki, {
 
               if (headerPattern.test(node.nodeName) && node.className.include("wikigeneratedheader") == false) {
                   var editspan = document.createElement("SPAN");
-                  var editlink = document.createElement("A");
-
-                  editlink.href = window.docediturl + "?section=" + sectioncount;
-                  editlink.style.textDecoration = "none";
-                  editlink.innerHTML = "$msg.get('edit')";
                   editspan.className = "edit_section";
+                  // Hide the section editing link if the section heading is hidden.
+                  (!node.visible() || node.hasClassName('hidden')) && editspan.hide();
+
+                  // If there's no Syntax Renderer for the current document's syntax then make sure the section edit
+                  // button will be displayed inactive since editing a section requires a Syntax Renderer.
+                  var editlink;
+                  if (!XWiki.hasRenderer) {
+                      editlink = document.createElement("SPAN");
+                      editspan.className = editspan.className + " disabled";
+                      editlink.title = "$services.localization.render('platform.core.rendering.noRendererForSectionEdit')";
+                  } else {
+                      editlink = document.createElement("A");
+                      editlink.href = window.docediturl + "?section=" + sectioncount;
+                      editlink.style.textDecoration = "none";
+                      editlink.innerHTML = "$services.localization.render('edit')";
+                  }
 
                   editspan.appendChild(editlink);
                   node.insert( { 'after': editspan } );
@@ -330,8 +336,10 @@ Object.extend(XWiki, {
 
   /**
    * Display a modal box allowing to create the new document from a template when clicking on broken links.
+   *
+   * @param container where to look for broken links
    */
-  insertCreatePageFromTemplateModalBoxes: function() {
+  insertCreatePageFromTemplateModalBoxes: function(container) {
       // Insert links only in view mode and for documents not in xwiki/1.0 syntax
       if (XWiki.docsyntax != "xwiki/1.0" && XWiki.contextaction == "view" && XWiki.hasEdit && XWiki.widgets.ModalPopup) {
           XWiki.widgets.CreatePagePopup = Class.create(XWiki.widgets.ModalPopup, {
@@ -355,7 +363,7 @@ Object.extend(XWiki, {
               }
           });
 
-          var spans = document.body.select("span.wikicreatelink");
+          var spans = $(container || 'body').select("span.wikicreatelink");
           for (var i = 0; i < spans.length; i++) {
               spans[i].down('a').observe('click', function(event) {
                   // Remove the fragment identifier from the link URL.
@@ -374,7 +382,7 @@ Object.extend(XWiki, {
                           }
                       },
                       onFailure: function() {
-                        new XWiki.widgets.Notification("$msg.get('core.create.ajax.error')", 'error', {inactive: true}).show();
+                        new XWiki.widgets.Notification("$services.localization.render('core.create.ajax.error')", 'error', {inactive: true}).show();
                       }
                   });
                   event.stop();
@@ -438,10 +446,11 @@ Object.extend(XWiki, {
     /**
      * Initialize watchlist UI.
      */
-    initialize: function() {
+    initialize: function(container) {
+        container = $(container || 'body');
         for (button in XWiki.watchlist.actionsMap) {
-          if ($(button) != null) {
-            var element = $(button);
+          var element = container.down('#' + button);
+          if (element) {
             var self = this;
 
             if (element.nodeName != 'A') {
@@ -525,8 +534,8 @@ Object.extend(XWiki, {
     element.toggleClassName("collapsed");
   },
 
-  registerPanelToggle: function() {
-    $$('.panel .xwikipaneltitle').each(function(item) {
+  registerPanelToggle: function(container) {
+    $(container || 'body').select('.panel .xwikipaneltitle').each(function(item) {
       item.observe('click', this.togglePanelVisibility.bind(this, item.up('.panel')));
     }.bind(this));
   },
@@ -579,16 +588,30 @@ Object.extend(XWiki, {
       this.isInitialized = true;
       document.fire("xwiki:dom:loading");
 
-      this.makeRenderingErrorsExpandable();
-      this.fixLinksTargetAttribute();
-      this.insertSectionEditLinks();
-      this.insertCreatePageFromTemplateModalBoxes();
-      this.watchlist.initialize();
-      this.registerPanelToggle();
+      // Make sure we re-add the behaviour whenever a part of the DOM is updated.
+      document.observe('xwiki:dom:updated', function(event) {
+        event.memo.elements.each(this._addBehaviour.bind(this));
+      }.bindAsEventListener(this));
+      // Add behaviour to the entire DOM.
+      this._addBehaviour();
 
       this.domIsLoaded = true;
       document.fire("xwiki:dom:loaded");
     }
+  },
+
+  /**
+   * Enhances some of the common page elements with JavaScript behaviour.
+   */
+  _addBehaviour: function(container) {
+    container = container || $('body');
+
+    this.makeRenderingErrorsExpandable(container);
+    this.fixLinksTargetAttribute(container);
+    this.insertSectionEditLinks(container);
+    this.insertCreatePageFromTemplateModalBoxes(container);
+    this.watchlist.initialize(container);
+    this.registerPanelToggle(container);
   }
 });
 
@@ -1287,14 +1310,22 @@ document.observe('xwiki:dom:loading', function() {
     placeholderPolyfill = function(event) {
       var item = event.memo.element;
       if (item.placeholder === '') {
-        item.placeholder = item.defaultValue;
-        item.value = '';
+        if (item.hasClassName('useTitleAsTip')) {
+          // The place-holder text is different than the initial (default) input value.
+          item.placeholder = item.title;
+        } else {
+          // Use the initial (default) input value as place-holder.
+          item.placeholder = item.defaultValue;
+          item.value = '';
+        }
       }
     }
   } else {
     // For browsers that don't support the 'placeholder' attribute, we simulate it with 'focus' and 'blur' event handlers.
     var onFocus = function() {
-      if (this.value == this.defaultValue) {
+      var empty = this.hasClassName('empty');
+      this.removeClassName('empty');
+      if (empty) {
         this.value = '';
       } else {
         this.select();
@@ -1303,12 +1334,26 @@ document.observe('xwiki:dom:loading', function() {
     var onBlur = function() {
       if (this.value == '') {
         this.value = this.defaultValue;
+        this.addClassName('empty');
       }
     }
     placeholderPolyfill = function(event) {
       var item = event.memo.element;
+      // Backup the initial input value because IE resets it when the default value is set.
+      var initialValue = item.value;
       if (item.readAttribute('placeholder')) {
         item.defaultValue = item.readAttribute('placeholder');
+      } else if (item.hasClassName('useTitleAsTip')) {
+        item.defaultValue = item.title;
+      }
+      // Restore the initial input value;
+      item.value = initialValue;
+      if (item.value == item.defaultValue) {
+        // The 'empty' CSS class has two functions:
+        // * display the placeholder value with a different color
+        // * distinguish between the case when the user has left the input empty and the case when he typed exactly the
+        //   default value (which should be valid).
+        item.addClassName('empty');
       }
       item.observe('focus', onFocus.bindAsEventListener(item));
       item.observe('blur', onBlur.bindAsEventListener(item));
@@ -1488,7 +1533,7 @@ document.observe('xwiki:dom:loaded', function() {
       });
     }
     $('body').observe('click', function (event) {
-      if (!event.element().descendantOf(parentInputSection) && event.element() != parentInputSection && event.element() != editParentTrigger) {
+      if (event.element().descendantOf && !event.element().descendantOf(parentInputSection) && event.element() != parentInputSection && event.element() != editParentTrigger) {
         hideParentSection();
       }
     })

@@ -119,12 +119,10 @@
   #set ($previousDoc = $docname)
 #end
 #if ($backlinkDocs.size() &gt; 0 || $showEmptyPanels)
-  #panelheader($msg.get('docextra.backlinks'))
+  #panelheader($services.localization.render('docextra.backlinks'))
   #foreach ($backlinkDoc in $backlinkDocs)
-    #if (!$foreach.first)
-      (% class="pitemseparator" %) ~| (%%)##
-    #end
-    (% class="panelitem" %)[[$backlinkDoc.plainTitle&gt;&gt;$backlinkDoc.fullName]](%%)##
+    ## We use HTML here because we don't have a tool to escape wiki syntax in document title.
+    * {{html}}&lt;a href="$backlinkDoc.getURL()"&gt;$escapetool.xml($backlinkDoc.plainTitle)&lt;/a&gt;{{/html}}
   #end
   #panelfooter()
 #end

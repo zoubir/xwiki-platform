@@ -23,6 +23,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.Enumeration;
+import java.util.List;
+import java.util.ListIterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
@@ -30,8 +32,8 @@ import java.util.Properties;
 import javax.inject.Inject;
 import javax.inject.Named;
 
+import org.apache.commons.collections.EnumerationUtils;
 import org.xwiki.component.annotation.Component;
-import org.xwiki.localization.TranslationBundle;
 import org.xwiki.localization.TranslationBundleContext;
 import org.xwiki.localization.internal.AbstractCachedTranslationBundle;
 import org.xwiki.localization.internal.DefaultLocalizedTranslationBundle;
@@ -48,7 +50,7 @@ import org.xwiki.localization.message.TranslationMessageParser;
  */
 @Component
 @Named("rootclassloader")
-public class RootClassLoaderTranslationBundle extends AbstractCachedTranslationBundle implements TranslationBundle
+public class RootClassLoaderTranslationBundle extends AbstractCachedTranslationBundle
 {
     /**
      * The parser to use for each message.
@@ -115,15 +117,23 @@ public class RootClassLoaderTranslationBundle extends AbstractCachedTranslationB
             return null;
         }
 
+        List<URL> urlList = EnumerationUtils.toList(urls);
+
         Properties properties = new Properties();
 
-        while (urls.hasMoreElements()) {
-            URL url = urls.nextElement();
+        // Load resources in reverse order to give priority to first found resources (follow ClassLoader#getResource
+        // behavior)
+        for (ListIterator<URL> it = urlList.listIterator(urlList.size()); it.hasPrevious();) {
+            URL url = it.previous();
 
             try {
                 InputStream componentListStream = url.openStream();
 
-                properties.load(componentListStream);
+                try {
+                    properties.load(componentListStream);
+                } finally {
+                    componentListStream.close();
+                }
             } catch (IOException e) {
                 this.logger.error("Failed to parse resource [{}] as translation budle", url, e);
             }

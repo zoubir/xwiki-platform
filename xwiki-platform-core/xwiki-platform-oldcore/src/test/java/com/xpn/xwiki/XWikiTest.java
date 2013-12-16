@@ -40,6 +40,7 @@ import org.xwiki.bridge.event.DocumentCreatedEvent;
 import org.xwiki.bridge.event.DocumentCreatingEvent;
 import org.xwiki.bridge.event.DocumentDeletedEvent;
 import org.xwiki.bridge.event.DocumentDeletingEvent;
+import org.xwiki.localization.LocalizationContext;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.observation.EventListener;
 import org.xwiki.observation.ObservationManager;
@@ -86,6 +87,9 @@ public class XWikiTest extends AbstractBridgedXWikiComponentTestCase
         getContext().setRequest(new XWikiServletRequestStub());
         getContext().setURL(new URL("http://localhost:8080/xwiki/bin/view/MilkyWay/Fidis"));
 
+        Mock mockLocalizationContext = registerMockComponent(LocalizationContext.class);
+        mockLocalizationContext.stubs().method("getCurrentLocale").will(returnValue(Locale.ROOT));
+        
         this.xwiki = new XWiki(new XWikiConfig(), getContext())
         {
             // Avoid all the error at XWiki initialization
@@ -285,24 +289,6 @@ public class XWikiTest extends AbstractBridgedXWikiComponentTestCase
     public void testClearNameWithStripDotsWithAscii()
     {
         assertEquals("eetxt", this.xwiki.clearName("\u00E9\u00EA{&.txt", true, true, getContext()));
-    }
-
-    public void testGetDocumentNameFromPath()
-    {
-        assertEquals("Main.WebHome", this.xwiki.getDocumentNameFromPath("", getContext()));
-        assertEquals("Main.WebHome", this.xwiki.getDocumentNameFromPath("/", getContext()));
-        assertEquals("Main.Document", this.xwiki.getDocumentNameFromPath("/Document", getContext()));
-        assertEquals("Space.WebHome", this.xwiki.getDocumentNameFromPath("/Space/", getContext()));
-        assertEquals("Space.Document", this.xwiki.getDocumentNameFromPath("/Space/Document", getContext()));
-        assertEquals("Space.WebHome", this.xwiki.getDocumentNameFromPath("/view/Space/", getContext()));
-        assertEquals("Space.Document", this.xwiki.getDocumentNameFromPath("/view/Space/Document", getContext()));
-        assertEquals("Space.Document", this.xwiki.getDocumentNameFromPath("/view/Space/Document/", getContext()));
-        assertEquals("Space.Document", this.xwiki.getDocumentNameFromPath("/view/Space/Document/some/ignored/paths",
-            getContext()));
-
-        // Test URL encoding and verify an encoded forward slash ("/" - encoded as %2F) works too.
-        assertEquals("My Space.My/Document",
-            this.xwiki.getDocumentNameFromPath("/My%20Space/My%2FDocument", getContext()));
     }
 
     /**

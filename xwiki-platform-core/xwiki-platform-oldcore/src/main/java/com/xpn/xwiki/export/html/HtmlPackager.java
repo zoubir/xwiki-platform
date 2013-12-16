@@ -39,10 +39,9 @@ import org.xwiki.context.ExecutionContext;
 import org.xwiki.context.ExecutionContextException;
 import org.xwiki.context.ExecutionContextManager;
 import org.xwiki.environment.Environment;
-import org.xwiki.model.EntityType;
 import org.xwiki.model.reference.DocumentReference;
+import org.xwiki.model.reference.DocumentReferenceResolver;
 import org.xwiki.model.reference.EntityReference;
-import org.xwiki.model.reference.EntityReferenceResolver;
 import org.xwiki.velocity.VelocityManager;
 
 import com.xpn.xwiki.XWikiContext;
@@ -182,8 +181,8 @@ public class HtmlPackager
     private void renderDocument(String pageName, ZipOutputStream zos, XWikiContext context, VelocityContext vcontext)
         throws XWikiException, IOException
     {
-        EntityReferenceResolver<String> resolver = Utils.getComponent(EntityReferenceResolver.TYPE_STRING);
-        DocumentReference docReference = new DocumentReference(resolver.resolve(pageName, EntityType.DOCUMENT));
+        DocumentReferenceResolver<String> resolver = Utils.getComponent(DocumentReferenceResolver.TYPE_STRING, "current");
+        DocumentReference docReference = resolver.resolve(pageName);
         XWikiDocument doc = context.getWiki().getDocument(docReference, context);
 
         if (doc.isNew()) {
@@ -245,12 +244,12 @@ public class HtmlPackager
         VelocityContext oldVelocityContext = (VelocityContext) context.get("vcontext");
 
         try {
-            XWikiContext renderContext = (XWikiContext) context.clone();
+            XWikiContext renderContext = context.clone();
             renderContext.put("action", "view");
 
             ExecutionContext executionContext = ecim.clone(execution.getContext());
 
-            // Bridge with old XWiki Context, required for old code.
+            // Bridge with old XWiki Context, required for legacy code.
             executionContext.setProperty("xwikicontext", renderContext);
 
             // Push a clean new Execution Context since we don't want the main Execution Context to be used for

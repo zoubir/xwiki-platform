@@ -28,6 +28,7 @@ import org.xwiki.rendering.syntax.Syntax;
 
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.doc.XWikiDocument;
+import com.xpn.xwiki.internal.xml.XMLAttributeValueFilter;
 import com.xpn.xwiki.objects.BaseCollection;
 import com.xpn.xwiki.objects.BaseProperty;
 import com.xpn.xwiki.objects.LargeStringProperty;
@@ -163,6 +164,7 @@ public class TextAreaClass extends StringClass
     {
         boolean isWysiwyg = isWysiwyg(context);
         textarea textarea = new textarea();
+        textarea.setAttributeFilter(new XMLAttributeValueFilter());
         String tname = prefix + name;
         BaseProperty prop = (BaseProperty) object.safeget(name);
         if (prop != null) {
@@ -234,7 +236,11 @@ public class TextAreaClass extends StringClass
         Syntax syntax;
 
         try {
-            XWikiDocument doc = context.getWiki().getDocument(object.getDocumentReference(), context);
+            XWikiDocument doc = object.getOwnerDocument();
+            if (doc == null) {
+                doc = context.getWiki().getDocument(object.getDocumentReference(), context);
+            }
+
             syntax = doc.getSyntax();
         } catch (Exception e) {
             // Used to convert a Document Reference to string (compact form without the wiki part if it matches the

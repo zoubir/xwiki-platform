@@ -7,8 +7,7 @@ $response.setContentType("text/xml")
   #set ($input = $services.model.resolveDocument($input).name)
 #end
 #if ($request.wiki == 'global')
-  ## We need an API to create a wiki reference.
-  #set ($wikiReference = $services.model.createDocumentReference($xcontext.mainWikiName, 'Space', 'Page').wikiReference)
+  #set ($wikiReference = $services.model.createWikiReference($xcontext.mainWikiName))
 #else
   #set ($wikiReference = $doc.documentReference.wikiReference)
 #end
@@ -20,12 +19,13 @@ $response.setContentType("text/xml")
     #set ($userReference = $services.model.resolveDocument($user, $wikiReference))
     #set ($userStringReference = $services.model.serialize($userReference, 'default'))
     #getUserAvatarURL($userReference $avatarURL 30)
+    ## The string returned by XWiki#getUserName() is XML encoded.
     #set ($userName = $xwiki.getUserName($userStringReference, false))
-    <rs id="$escapetool.xml($userReference.name)" info="$escapetool.xml($userName)"
-      icon="$escapetool.xml($avatarURL.url)">$escapetool.xml($userStringReference)</rs>
+    <rs id="$escapetool.xml($userReference.name)" icon="$escapetool.xml($avatarURL.url)"
+      info="$userName">$escapetool.xml($userStringReference)</rs>
   #end
 #else ## groups
-  #set ($statement = 'from doc.object(XWiki.XWikiGroups) as groups where lower(doc.name) like :input order by doc.name')
+  #set ($statement = 'from doc.object(XWiki.XWikiGroups) as groups where lower(doc.name) like :input and doc.fullName <> ''XWiki.XWikiGroupTemplate'' order by doc.name')
   #set ($query = $services.query.xwql($statement).setWiki($wikiReference.name).addFilter("unique"))
   #set ($discard = $query.setOffset(0).setLimit(10).bindValue('input', "%$input%"))
   #foreach($group in $query.execute())

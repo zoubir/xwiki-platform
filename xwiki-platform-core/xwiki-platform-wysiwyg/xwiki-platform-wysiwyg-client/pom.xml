@@ -25,7 +25,7 @@
   <parent>
     <groupId>org.xwiki.platform</groupId>
     <artifactId>xwiki-platform-wysiwyg</artifactId>
-    <version>5.0-SNAPSHOT</version>
+    <version>5.4-SNAPSHOT</version>
   </parent>
   <artifactId>xwiki-platform-wysiwyg-client</artifactId>
   <name>XWiki Platform - WYSIWYG Editor - Client Side</name>
@@ -62,6 +62,8 @@
       <!-- SmartGWT is used only for its tree widget. -->
       <groupId>com.smartgwt</groupId>
       <artifactId>smartgwt</artifactId>
+      <!-- Only needed at build time -->
+      <scope>provided</scope>
     </dependency>
     <!-- XWiki dependencies -->
     <dependency>

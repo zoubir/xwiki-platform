@@ -21,8 +21,6 @@ package org.xwiki.component.wiki;
 
 import java.lang.reflect.Type;
 
-import junit.framework.Assert;
-
 import org.jmock.Expectations;
 import org.junit.Before;
 import org.junit.Test;

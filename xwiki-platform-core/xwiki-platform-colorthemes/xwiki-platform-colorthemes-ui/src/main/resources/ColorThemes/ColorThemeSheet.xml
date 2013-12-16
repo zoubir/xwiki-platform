@@ -15,42 +15,13 @@
   <date>1251108485000</date>
   <contentUpdateDate>1251108485000</contentUpdateDate>
   <version>1.1</version>
-  <title>$msg.get('xe.themes.colors.sheet.title')</title>
-  <template/>
+  <title>#sheetTitle('xe.themes.colors.sheet.title' $doc.name.equals('ColorThemeSheet'))</title>
   <defaultTemplate/>
   <validationScript/>
   <comment/>
   <minorEdit>false</minorEdit>
   <syntaxId>xwiki/2.0</syntaxId>
   <hidden>true</hidden>
-  <object>
-    <class>
-      <name>XWiki.EditModeClass</name>
-      <customClass/>
-      <customMapping/>
-      <defaultViewSheet/>
-      <defaultEditSheet/>
-      <defaultWeb/>
-      <nameField/>
-      <validationScript/>
-      <defaultEditMode>
-        <disabled>0</disabled>
-        <name>defaultEditMode</name>
-        <number>1</number>
-        <prettyName>Default Edit Mode</prettyName>
-        <size>15</size>
-        <unmodifiable>0</unmodifiable>
-        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
-      </defaultEditMode>
-    </class>
-    <name>ColorThemes.ColorThemeSheet</name>
-    <number>0</number>
-    <className>XWiki.EditModeClass</className>
-    <guid>27743952-2e47-486c-bbc6-346461258e76</guid>
-    <property>
-      <defaultEditMode>inline</defaultEditMode>
-    </property>
-  </object>
   <object>
     <class>
       <name>XWiki.JavaScriptExtension</name>
@@ -259,7 +230,7 @@ XWiki.editors.ColorThemeWizard = Class.create({
     return element.className.substring(this.classPrefix.length - 1, element.className.indexOf(' '));
   },
   redefineActivation : function() {
-    if (!$('body').hasClassName('inlinebody')) {
+    if (!$('body').hasClassName('inlinebody') &amp;&amp; !$('body').hasClassName('editbody')) {
       return;
     }
 
@@ -306,7 +277,7 @@ XWiki.editors.ColorThemeWizard = Class.create({
 
       // Create close buttons for each picker
       var picker = $(this.fastDown(trigger, this.pickerSelector.substring(1)));
-      var closeButton = new Element('div', {'class' : 'close-button', 'title' : "$msg.get('xe.themes.colors.wizard.close')"}).update('X');
+      var closeButton = new Element('div', {'class' : 'close-button', 'title' : "$services.localization.render('xe.themes.colors.wizard.close')"}).update('X');
       picker.insert({top: closeButton});
       closeButton.observe('click', this.hidePicker.bindAsEventListener(this, this.fastUp(closeButton, this.triggerSelector.substring(1))));
       // To override the no-script activation css rule (hover), hide the pickers from the inline style;
@@ -359,7 +330,7 @@ XWiki.editors.ColorThemeWizard = Class.create({
         item.observe(monitoredEvent, this.inputValueChanged.bindAsEventListener(this, item));
       }.bind(this));
       // Create undo buttons
-      item._x_undoButton = new Element('button', {'class' : 'undo', 'title' : "$msg.get('xe.themes.colors.wizard.undo')"}).update("$msg.get('xe.themes.colors.wizard.undo')");
+      item._x_undoButton = new Element('button', {'class' : 'undo', 'title' : "$services.localization.render('xe.themes.colors.wizard.undo')"}).update("$services.localization.render('xe.themes.colors.wizard.undo')");
       item._x_undoButton._x_input = item;
       item._x_undoButton._x_value = item.value;
       item._x_undoButton.style.visibility = "hidden";
@@ -395,7 +366,7 @@ XWiki.editors.ColorThemeWizard = Class.create({
     // The theme property edited in this field, e.g. textColor
     var propName = this.retrievePropertyName(input.name);
     if (propName == this.logoProperty) {
-       if (input.value.trim() != '') {
+       if (input.value.strip() != '') {
          $(this.logoSelector).src = this.wrapImagePropertyValue(propName, input.value);
        } else {
          $(this.logoSelector).src = this.defaultLogoURl;
@@ -805,7 +776,7 @@ $ie .colorthemewizard-trigger {
 #foreach($element in $elementPropertyMap.keySet())
 #if($velocityCount != 1),
 #end
-.inlinebody .colorthemewizard-${element}:hover #colorthemewizard-${element}-trigger#end
+.inlinebody .colorthemewizard-${element}:hover #colorthemewizard-${element}-trigger, .editbody .colorthemewizard-${element}:hover #colorthemewizard-${element}-trigger#end
  {
   display: block;
   /* When hovering the element, a border is displayed reducing 2px from the padding. The triggers are shifted to compensate this difference. */
@@ -843,7 +814,7 @@ $ie .colorthemewizard-editable-group {
 }
 #foreach($i in $paddedElements)
 #if($velocityCount &gt; 1),
-#end.inlinebody .colorthemewizard-$i:hover#end {
+#end.inlinebody .colorthemewizard-$i:hover, .editbody .colorthemewizard-$i:hover#end {
   padding: 1px 8px;
   border: 2px dotted $widgetsColors.selectedBorder !important;
 }
@@ -863,19 +834,19 @@ $ie .colorthemewizard-editable-group {
 }
 #foreach($i in $notPaddedElements)
 #if($velocityCount &gt; 1),
-#end.inlinebody .colorthemewizard-$i:hover#end {
+#end.inlinebody .colorthemewizard-$i:hover, .editbody .colorthemewizard-$i:hover#end {
   padding: 0;
   border: 2px dotted $widgetsColors.selectedBorder;
 }
 /* Set the border for large containers. */
 #foreach($i in $largeContainers)
 #if($velocityCount &gt; 1),
-#end.inlinebody .colorthemewizard-$i:hover#end {
+#end.inlinebody .colorthemewizard-$i:hover, .editbody .colorthemewizard-$i:hover#end {
   border: 2px dotted $widgetsColors.selectedBorder;
 }
 
 #foreach($i in $largeContainers)
-.inlinebody .colorthemewizard-${i}-unhover {
+.inlinebody .colorthemewizard-${i}-unhover, .editbody .colorthemewizard-${i}-unhover {
   border-color: $widgetsColors.border !important;
 }
 #end
@@ -903,11 +874,11 @@ $ie .colorthemewizard-editable-group {
   /* 'Invisible' border. */
   border: 2px solid $theme.pageContentBackgroundColor;
 }
-.inlinebody .colorthemewizard-page {
+.inlinebody .colorthemewizard-page, .editbody .colorthemewizard-page {
   border: 2px dotted $theme.pageContentBackgroundColor; ## $widgetsColors.activeBorder;
 }
 /* Do not shift the page trigger, since there is no change in this element's padding on hover. */
-.inlinebody .colorthemewizard-page:hover #colorthemewizard-page-trigger {
+.inlinebody .colorthemewizard-page:hover #colorthemewizard-page-trigger, .editbody .colorthemewizard-page:hover #colorthemewizard-page-trigger {
   margin: 0;
 }
 /* Display the tip above the bottom of the page */
@@ -942,7 +913,7 @@ $ie .colorthemewizard-editable-group {
 #colorthemewizard-headerbox-trigger {
   margin: 2px;
 }
-.inlinebody .colorthemewizard-headerbox:hover #colorthemewizard-headerbox-trigger {
+.inlinebody .colorthemewizard-headerbox:hover #colorthemewizard-headerbox-trigger, .editbody .colorthemewizard-headerbox:hover #colorthemewizard-headerbox-trigger {
   margin: 0;
 }
 /*
@@ -984,7 +955,7 @@ $ie6 .colorthemewizard-panels {
   margin: 9px 2px;
 }
 /* Reduce 2px from the margin to make room for the border. */
-.inlinebody .colorthemewizard-content:hover {
+.inlinebody .colorthemewizard-content:hover, .editbody .colorthemewizard-content:hover {
   margin: 7px 0;
 }
 
@@ -993,7 +964,7 @@ $ie7 .colorthemewizard-content {
   border-bottom: 1px solid transparent;
 }
 /* Do not shift the page trigger, since there is no change in this element's padding on hover. */
-.inlinebody .colorthemewizard-content:hover #colorthemewizard-content-trigger {
+.inlinebody .colorthemewizard-content:hover #colorthemewizard-content-trigger, .editbody .colorthemewizard-content:hover #colorthemewizard-content-trigger {
   margin: 0;
 }
 .colorthemewizard-xwikicontent {
@@ -1157,6 +1128,12 @@ input.procolor {
 ##
 ## INITIALIZATION
 ##
+## Mode
+#if ($xcontext.action == 'edit' || $xcontext.action == 'inline')
+  #set ($sheetMode = 'edit')
+#else
+  #set ($sheetMode = 'view')
+#end
 ## The color theme class and object
 #set($classname = 'ColorThemes.ColorThemeClass')
 #set($class = $xwiki.getDocument($classname).getxWikiClass())
@@ -1273,7 +1250,7 @@ $xwiki.jsx.use('ColorThemes.ColorThemeSheet', {
              #set($params = $params.replaceAll("(^|&amp;)${propID}=[^&amp;]*", ""))
              #set($params = $params.replaceAll("&amp;", "&amp;amp;"))
              #set($params = "${params}&amp;amp;${propID}=${colorID}")
-             &lt;td&gt;&lt;a href="$doc.getURL('inline', $params)" class="color${colorID}#if("$!{obj.getProperty($propname).value}" == "$!{webColors.get($colorID)}") current#end"&gt;&lt;/a&gt;&lt;/td&gt;
+             &lt;td&gt;&lt;a href="$doc.getURL('edit', $params)" class="color${colorID}#if("$!{obj.getProperty($propname).value}" == "$!{webColors.get($colorID)}") current#end"&gt;&lt;/a&gt;&lt;/td&gt;
           #end
          &lt;/tr&gt;
         #end
@@ -1376,14 +1353,14 @@ $xwiki.jsx.use('ColorThemes.ColorThemeSheet', {
  * @param element The target element
  *#
 #macro(printColorThemeWizard $element)
-  ## Only generate the palettes in inline mode
-  #if ($context.action == 'inline')
+  ## Only generate the palettes in edit mode
+  #if ($sheetMode == 'edit')
     #set($propnames = '')
     #set($propnames = $!elementPropertyMap.get($element))
     #if("$!{propnames}" != '' &amp;&amp; $propnames.size() &gt; 0)
     &lt;div id="colorthemewizard-${element}-trigger" class="colorthemewizard-trigger"&gt;
       &lt;div class="colorthemewizard-tip"&gt;
-        $msg.get('xe.themes.colors.wizard.choose'):
+        $services.localization.render('xe.themes.colors.wizard.choose'):
         &lt;ul&gt;
           #foreach($propname in $propnames)
             &lt;li&gt;#printPropertyPrettyname($propname)&lt;/li&gt;
@@ -1525,16 +1502,16 @@ $xwiki.jsx.use('ColorThemes.ColorThemeSheet', {
 {{html clean="false" wiki="false"}}
 ##
 ##
-#if($context.action == 'inline')&lt;div class="colorthemewizard-reset"&gt;&lt;input type="reset" value="$msg.get('xe.themes.colors.wizard.reset')"/&gt;&lt;/div&gt;#end
+#if($sheetMode == 'edit')&lt;div class="colorthemewizard-reset"&gt;&lt;input type="reset" value="$services.localization.render('xe.themes.colors.wizard.reset')"/&gt;&lt;/div&gt;#end
 &lt;div #elementMetaData('page')&gt;
   #printColorThemeWizard('page')
   ## Main menu
   &lt;div #elementMetaData('mainmenu')&gt;
    &lt;div&gt;
-    $msg.get('xe.themes.colors.wizard.mainMenu')
-    &lt;span #elementMetaData('menuaddentry')&gt;$msg.get('xe.themes.colors.wizard.menuEntry')#$msg.get('core.menu.create')&lt;/span&gt;
-    &lt;span #elementMetaData('menuentry')&gt;$msg.get('xe.themes.colors.wizard.menuEntry')#1&lt;/span&gt;
-    &lt;span #elementMetaData('menuentry')&gt;$msg.get('xe.themes.colors.wizard.menuEntry')#2&lt;/span&gt;
+    $services.localization.render('xe.themes.colors.wizard.mainMenu')
+    &lt;span #elementMetaData('menuaddentry')&gt;$services.localization.render('xe.themes.colors.wizard.menuEntry')#$services.localization.render('core.menu.create')&lt;/span&gt;
+    &lt;span #elementMetaData('menuentry')&gt;$services.localization.render('xe.themes.colors.wizard.menuEntry')#1&lt;/span&gt;
+    &lt;span #elementMetaData('menuentry')&gt;$services.localization.render('xe.themes.colors.wizard.menuEntry')#2&lt;/span&gt;
    &lt;/div&gt;
    #printColorThemeWizard('mainmenu')
   &lt;/div&gt;
@@ -1550,7 +1527,7 @@ $xwiki.jsx.use('ColorThemes.ColorThemeSheet', {
         ## For this $logoname is already set in global.vm
         #set($themeLogoImage = "$xwiki.getSkinFile($logoname)")
       #end
-      &lt;img id="colorthemewizard-logo" src="$themeLogoImage" alt="$msg.get('xe.themes.colors.wizard.logo')"/&gt;
+      &lt;img id="colorthemewizard-logo" src="$themeLogoImage" alt="$services.localization.render('xe.themes.colors.wizard.logo')"/&gt;
     &lt;/div&gt;
     #printColorThemeWizard('headerbox')
   &lt;/div&gt;
@@ -1560,18 +1537,18 @@ $xwiki.jsx.use('ColorThemes.ColorThemeSheet', {
     &lt;div #elementMetaData('panel')&gt;
       ## Expanded panel header
       &lt;div #elementMetaData('panelheader')&gt;
-        &lt;div&gt;$msg.get('xe.themes.colors.wizard.panel')&lt;/div&gt;
+        &lt;div&gt;$services.localization.render('xe.themes.colors.wizard.panel')&lt;/div&gt;
         #printColorThemeWizard('panelheader')
       &lt;/div&gt;
       ## Expanded panel contents
       &lt;div #elementMetaData('panelcontents')&gt;
-        &lt;div&gt;&lt;span #elementMetaData('text')&gt;$msg.get('xe.themes.colors.wizard.panel.text')&lt;/span&gt; | &lt;span  #elementMetaData('link')&gt;$msg.get('xe.themes.colors.wizard.panel.link')&lt;/span&gt;&lt;/div&gt;
+        &lt;div&gt;&lt;span #elementMetaData('text')&gt;$services.localization.render('xe.themes.colors.wizard.panel.text')&lt;/span&gt; | &lt;span  #elementMetaData('link')&gt;$services.localization.render('xe.themes.colors.wizard.panel.link')&lt;/span&gt;&lt;/div&gt;
         #printColorThemeWizard('panelcontents')
       &lt;/div&gt;
     &lt;/div&gt;
     ## Collapsed panel
     &lt;div #elementMetaData('collapsedpanel')&gt;
-      &lt;div&gt;$msg.get('xe.themes.colors.wizard.panel.collapsed')&lt;/div&gt;
+      &lt;div&gt;$services.localization.render('xe.themes.colors.wizard.panel.collapsed')&lt;/div&gt;
       #printColorThemeWizard('collapsedpanel')
     &lt;/div&gt;
   &lt;/div&gt; ##panels
@@ -1579,51 +1556,51 @@ $xwiki.jsx.use('ColorThemes.ColorThemeSheet', {
     ## XWiki Content
     &lt;div #elementMetaData('content')&gt;
       &lt;div #elementMetaData('contentmenu')&gt;
-       $msg.get('xe.themes.colors.wizard.menu')
-       &lt;span #elementMetaData('menuentry')&gt;$msg.get('xe.themes.colors.wizard.menuEntry')#1&lt;/span&gt;
-       &lt;span #elementMetaData('menuentry')&gt;$msg.get('xe.themes.colors.wizard.menuEntry')#2&lt;/span&gt;
+       $services.localization.render('xe.themes.colors.wizard.menu')
+       &lt;span #elementMetaData('menuentry')&gt;$services.localization.render('xe.themes.colors.wizard.menuEntry')#1&lt;/span&gt;
+       &lt;span #elementMetaData('menuentry')&gt;$services.localization.render('xe.themes.colors.wizard.menuEntry')#2&lt;/span&gt;
        #printColorThemeWizard('contentmenu')
       &lt;/div&gt;
       &lt;div #elementMetaData('xwikicontent')&gt;
         &lt;div #elementMetaData('titlebox')&gt;
-          &lt;h2 #elementMetaData('title')&gt;$msg.get('xe.themes.colors.wizard.title')&lt;/h2&gt;
+          &lt;h2 #elementMetaData('title')&gt;$services.localization.render('xe.themes.colors.wizard.title')&lt;/h2&gt;
           #printColorThemeWizard('titlebox')
         &lt;/div&gt;
         &lt;div #elementMetaData('info')&gt;
-          &lt;div&gt;$msg.get('xe.themes.colors.wizard.informativeText')&lt;/div&gt;
+          &lt;div&gt;$services.localization.render('xe.themes.colors.wizard.informativeText')&lt;/div&gt;
           #printColorThemeWizard('info')
         &lt;/div&gt;
         &lt;div #elementMetaData('details')&gt;
-          &lt;div&gt;$msg.get('xe.themes.colors.wizard.detailsText')&lt;/div&gt;
+          &lt;div&gt;$services.localization.render('xe.themes.colors.wizard.detailsText')&lt;/div&gt;
           #printColorThemeWizard('details')
         &lt;/div&gt;
         &lt;div class="clearfloats" &gt;&lt;/div&gt;
         &lt;div #elementMetaData('textlink')&gt;
           &lt;div&gt;
-            &lt;span #elementMetaData('text')&gt;$msg.get('xe.themes.colors.wizard.text')&lt;/span&gt; |
-            &lt;span #elementMetaData('link')&gt;$msg.get('xe.themes.colors.wizard.link')&lt;/span&gt;
+            &lt;span #elementMetaData('text')&gt;$services.localization.render('xe.themes.colors.wizard.text')&lt;/span&gt; |
+            &lt;span #elementMetaData('link')&gt;$services.localization.render('xe.themes.colors.wizard.link')&lt;/span&gt;
           &lt;/div&gt;
           #printColorThemeWizard('textlink')
         &lt;/div&gt;
         &lt;div #elementMetaData('highlight')&gt;
-          &lt;div&gt;$msg.get('xe.themes.colors.wizard.highlightedText')&lt;/div&gt;
+          &lt;div&gt;$services.localization.render('xe.themes.colors.wizard.highlightedText')&lt;/div&gt;
           #printColorThemeWizard('highlight')
         &lt;/div&gt;
         &lt;div #elementMetaData('boxes')&gt;
-          &lt;div #elementMetaData('message')&gt;$msg.get('xe.themes.colors.wizard.messageBox')&lt;/div&gt;
+          &lt;div #elementMetaData('message')&gt;$services.localization.render('xe.themes.colors.wizard.messageBox')&lt;/div&gt;
           &lt;table #elementMetaData('table')&gt;
-            &lt;thead&gt;&lt;tr&gt;&lt;th colspan="2" scope="col" #elementMetaData('th')&gt;$msg.get('xe.themes.colors.wizard.table')&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;
-            &lt;tbody&gt;&lt;tr&gt;&lt;td #elementMetaData('td')&gt;$msg.get('xe.themes.colors.wizard.table.data')#1&lt;/td&gt;&lt;td #elementMetaData('td')&gt;$msg.get('xe.themes.colors.wizard.table.data')#2&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;
+            &lt;thead&gt;&lt;tr&gt;&lt;th colspan="2" scope="col" #elementMetaData('th')&gt;$services.localization.render('xe.themes.colors.wizard.table')&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;
+            &lt;tbody&gt;&lt;tr&gt;&lt;td #elementMetaData('td')&gt;$services.localization.render('xe.themes.colors.wizard.table.data')#1&lt;/td&gt;&lt;td #elementMetaData('td')&gt;$services.localization.render('xe.themes.colors.wizard.table.data')#2&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;
           &lt;/table&gt;
           #printColorThemeWizard('boxes')
         &lt;/div&gt;
         &lt;div class="clearfloats" &gt;&lt;/div&gt;
         &lt;div #elementMetaData('buttonbox')&gt;
-          &lt;div&gt;&lt;input #elementMetaData('button') type="button" value="$msg.get('xe.themes.colors.wizard.button')" /&gt;&lt;/div&gt;
+          &lt;div&gt;&lt;input #elementMetaData('button') type="button" value="$services.localization.render('xe.themes.colors.wizard.button')" /&gt;&lt;/div&gt;
           #printColorThemeWizard('buttonbox')
         &lt;/div&gt;
         &lt;div #elementMetaData('secondaryButtonbox')&gt;
-          &lt;div&gt;&lt;input #elementMetaData('secondaryButton') type="button" value="$msg.get('xe.themes.colors.wizard.secondaryButton')" /&gt;&lt;/div&gt;
+          &lt;div&gt;&lt;input #elementMetaData('secondaryButton') type="button" value="$services.localization.render('xe.themes.colors.wizard.secondaryButton')" /&gt;&lt;/div&gt;
           #printColorThemeWizard('secondaryButtonbox')
         &lt;/div&gt;
         &lt;div class="clearfloats" &gt;&lt;/div&gt;
@@ -1633,10 +1610,10 @@ $xwiki.jsx.use('ColorThemes.ColorThemeSheet', {
     ## Extra tabs - comments/attachments/history/information
     &lt;div  #elementMetaData('extratabs')&gt;
       &lt;div  #elementMetaData('tabshead')&gt;
-        &lt;span #elementMetaData('tabentryactive')&gt;$msg.get('xe.themes.colors.wizard.tab') &lt;span #elementMetaData('tabdetails')&gt;#1&lt;/span&gt;&lt;/span&gt;
-        &lt;span #elementMetaData('tabentry')&gt;$msg.get('xe.themes.colors.wizard.tab') &lt;span #elementMetaData('tabdetails')&gt;#2&lt;/span&gt;&lt;/span&gt;
+        &lt;span #elementMetaData('tabentryactive')&gt;$services.localization.render('xe.themes.colors.wizard.tab') &lt;span #elementMetaData('tabdetails')&gt;#1&lt;/span&gt;&lt;/span&gt;
+        &lt;span #elementMetaData('tabentry')&gt;$services.localization.render('xe.themes.colors.wizard.tab') &lt;span #elementMetaData('tabdetails')&gt;#2&lt;/span&gt;&lt;/span&gt;
       &lt;/div&gt;
-      &lt;div #elementMetaData('tabscontent')&gt;$msg.get('xe.themes.colors.wizard.tab.text')&lt;/div&gt;
+      &lt;div #elementMetaData('tabscontent')&gt;$services.localization.render('xe.themes.colors.wizard.tab.text')&lt;/div&gt;
       #printColorThemeWizard('extratabs')
     &lt;/div&gt;
   &lt;/div&gt; ## main column

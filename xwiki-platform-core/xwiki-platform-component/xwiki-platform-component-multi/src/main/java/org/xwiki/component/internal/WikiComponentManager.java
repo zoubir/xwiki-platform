@@ -23,12 +23,14 @@ import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 
-import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.component.annotation.Component;
-import org.xwiki.component.internal.multi.AbstractGenericComponentManager;
 import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.component.phase.Initializable;
 import org.xwiki.component.phase.InitializationException;
+import org.xwiki.model.EntityType;
+import org.xwiki.model.reference.EntityReference;
+import org.xwiki.model.reference.EntityReferenceValueProvider;
+import org.xwiki.model.reference.WikiReference;
 
 /**
  * Proxy Component Manager that creates and queries individual Component Managers specific to the current wiki in the
@@ -39,15 +41,21 @@ import org.xwiki.component.phase.InitializationException;
  * @since 2.1RC1
  */
 @Component
-@Named("wiki")
+@Named(WikiComponentManager.ID)
 @Singleton
-public class WikiComponentManager extends AbstractGenericComponentManager implements Initializable
+public class WikiComponentManager extends AbstractEntityComponentManager implements Initializable
 {
     /**
-     * Used to access the current wiki in the Execution Context.
+     * The identifier of this {@link ComponentManager}.
+     */
+    public static final String ID = "wiki";
+
+    /**
+     * Used to access the current entities.
      */
     @Inject
-    private DocumentAccessBridge documentAccessBridge;
+    @Named("current")
+    private EntityReferenceValueProvider currentProvider;
 
     /**
      * The Component Manager to be used as parent when a component is not found in the current Component Manager.
@@ -56,16 +64,16 @@ public class WikiComponentManager extends AbstractGenericComponentManager implem
     private ComponentManager rootComponentManager;
 
     @Override
+    protected EntityReference getCurrentReference()
+    {
+        return new WikiReference(this.currentProvider.getDefaultValue(EntityType.WIKI));
+    }
+
+    @Override
     public void initialize() throws InitializationException
     {
         // Set the parent to the Root Component Manager since if a component isn't found for a particular wiki
         // we want to check if it's available in the Root Component Manager.
         setInternalParent(this.rootComponentManager);
-    }
-
-    @Override
-    protected String getKey()
-    {
-        return "wiki:" + this.documentAccessBridge.getCurrentWiki();
     }
 }

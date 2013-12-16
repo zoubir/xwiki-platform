@@ -19,6 +19,8 @@
  */
 package com.xpn.xwiki.api;
 
+import java.util.Locale;
+
 import org.apache.velocity.VelocityContext;
 import org.hamcrest.Description;
 import org.hamcrest.Factory;
@@ -28,6 +30,7 @@ import org.jmock.Expectations;
 import org.jmock.lib.legacy.ClassImposteriser;
 import org.junit.Before;
 import org.junit.Test;
+import org.xwiki.context.Execution;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.rendering.syntax.Syntax;
 import org.xwiki.test.jmock.AbstractComponentTestCase;
@@ -41,7 +44,7 @@ import com.xpn.xwiki.objects.classes.BaseClass;
 import com.xpn.xwiki.store.XWikiStoreInterface;
 import com.xpn.xwiki.web.Utils;
 
-import junit.framework.Assert;
+import org.junit.Assert;
 
 /**
  * Unit tests for {@link Context}.
@@ -98,6 +101,7 @@ public class ContextTest extends AbstractComponentTestCase
     {
         // Setup Context and XWiki objects
         final XWikiContext xcontext = new XWikiContext();
+        xcontext.setMainXWiki("testwiki");
         xcontext.setDatabase("testwiki");
 
         final com.xpn.xwiki.XWiki xwiki = getMockery().mock(com.xpn.xwiki.XWiki.class);
@@ -105,7 +109,6 @@ public class ContextTest extends AbstractComponentTestCase
 
         final CoreConfiguration coreConfiguration = registerMockComponent(CoreConfiguration.class);
         final VelocityManager velocityManager = registerMockComponent(VelocityManager.class);
-        final XWikiStoreInterface store = getMockery().mock(XWikiStoreInterface.class);
 
         final DocumentReference documentReference = new DocumentReference("wiki", "space", "page");
         final XWikiDocument document = new XWikiDocument(documentReference);
@@ -121,17 +124,13 @@ public class ContextTest extends AbstractComponentTestCase
             will(returnValue(new VelocityContext()));
             allowing(xwiki).getLanguagePreference(xcontext);
             will(returnValue("en"));
-            allowing(xwiki).getStore();
-            will(returnValue(store));
             // Translated document
-            allowing(store).loadXWikiDoc(with(anXWikiDocumentWithReference(documentReference)), with(same(xcontext)));
+            allowing(xwiki).getDocument(with(equal(new DocumentReference(documentReference, Locale.ENGLISH))), with(same(xcontext)));
             will(returnValue(document));
             allowing(xwiki).getXClass(documentReference, xcontext);
             will(returnValue(baseClass));
             // Decide that there's no custom Displayer for the String field
             allowing(xwiki).exists(new DocumentReference("testwiki", "XWiki", "StringDisplayer"), xcontext);
-            will(returnValue(false));
-            allowing(xwiki).isVirtualMode();
             will(returnValue(false));
             allowing(xwiki).evaluateTemplate("displayer_string.vm", xcontext);
             will(returnValue(""));
@@ -141,6 +140,10 @@ public class ContextTest extends AbstractComponentTestCase
         BaseObject obj = (BaseObject) document.getXClass().newObject(xcontext);
         obj.setStringValue("prop", "value");
         document.addXObject(obj);
+
+        // Tie together Execution Context and old XWiki Context
+        Execution execution = getComponentManager().getInstance(Execution.class);
+        execution.getContext().setProperty("xwikicontext", xcontext);
 
         Context context = new Context(xcontext);
         context.setDisplayMode("edit");

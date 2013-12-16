@@ -167,6 +167,10 @@ input[type="text"], input[type="password"] {
 :-ms-placeholder {
   color: $theme.textSecondaryColor !important;
 }
+/* For browsers that don't support the placeholder attribute. */
+input[type="text"].empty {
+  color: $theme.textSecondaryColor !important;
+}
 /* Duplicated because IE6 chokes on the first two selectors. Don't recombine! */
 textarea, select {
   background-color: $theme.pageContentBackgroundColor;
@@ -238,7 +242,7 @@ tt .wikimodel-verbatim {
 }
 
 .main table {
-  margin: 1em 1px;
+  margin: 1em 0;
 }
 
 .main th, .main td,
@@ -292,7 +296,6 @@ span.wikicreatelink a:after {
 /* ---------------------Lists----------------------------*/
 .main ol, .main ul {
   line-height: 1.4em;
-  list-style-position: inside;
   margin: 1em 0 1em 2em;
 }
 .main ol *, .main ul * {
@@ -314,7 +317,7 @@ span.wikicreatelink a:after {
   visibility:hidden;
 }
 
-.edit_section a {
+.edit_section a, .edit_section span {
   background: transparent url("$xwiki.getSkinFile('icons/xwiki/edit-section.png')") no-repeat left top;
   height: 20px;
   margin: 0;
@@ -874,11 +877,6 @@ iframe.mceEditorIframe, .mceEditor {
 }
 
 /* ----------------New WYSYWYG Editor--------------------*/
-/* Should be in Wysiwyg.css */
-table.xRichTextEditorTabPanel td {
-  background-color: $theme.pageContentBackgroundColor;
-}
-
 /* Should be in RichTextArea.css - for table resizing */
 #body.main table {
   margin: 0;
@@ -1143,6 +1141,10 @@ div#xwikiobjects input[type="checkbox"], div#xwikiclassproperties input[type="ch
   background-image: url("$xwiki.getSkinFile('icons/silk/wrench.png')");
 }
 
+.actionmenu .tmCreateWiki{
+  background-image: url("$xwiki.getSkinFile('icons/silk/chart_organisation_add.png')");
+}
+
 .actionmenu .tmCreateSpace {
   background-image: url("$xwiki.getSkinFile('icons/silk/folder_add.png')");
 }
@@ -1324,9 +1326,6 @@ div#xwikiobjects input[type="checkbox"], div#xwikiclassproperties input[type="ch
 }
 *+html .xform legend {
   margin-left: -8px;
-}
-.xform fieldset h2 {
-  margin: 0;
 }
 
 .xform fieldset {
@@ -1513,7 +1512,7 @@ input.icon-button {
   background-image: url("$xwiki.getSkinFile('icons/xwiki/search.png')");
 }
 
-*:disabled, input.disabled, button.disabled, .buttonwrapper a.disabled {
+*:disabled, input.disabled, button.disabled, .buttonwrapper a.disabled, .edit_section.disabled {
   opacity: .5;
   cursor: default;
 }
@@ -2187,7 +2186,7 @@ ol.footnotes {
   border-top: 1px solid $theme.borderColor;
   font-size: 80%;
   margin: 10px 0;
-  padding: 1em;
+  padding: 2em;
 }
 
 .footnotes li {

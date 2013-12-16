@@ -126,12 +126,8 @@ public class DefaultWikiMacroInitializer implements WikiMacroInitializer, WikiMa
         try {
             if (!local) {
                 Set<String> wikiNames = new HashSet<String>();
-                // Always add the main wiki to the list of wikis for which to load defined wiki macros.
-                wikiNames.add(xcontext.getMainXWiki());
-                // If we're in multi wiki mode add the list of all subwikis
-                if (xcontext.getWiki().isVirtualMode()) {
-                    wikiNames.addAll(xcontext.getWiki().getVirtualWikisDatabaseNames(xcontext));
-                }
+                // Add the list of all subwikis
+                wikiNames.addAll(xcontext.getWiki().getVirtualWikisDatabaseNames(xcontext));
 
                 for (String wikiName : wikiNames) {
                     registerMacrosForWiki(wikiName, xcontext);
@@ -153,7 +149,7 @@ public class DefaultWikiMacroInitializer implements WikiMacroInitializer, WikiMa
     private void registerMacrosForWiki(String wikiName, XWikiContext xcontext)
     {
         try {
-            this.logger.debug("Registering wiki macros for wiki {}", wikiName);
+            this.logger.debug("Registering all wiki macros found in wiki [{}]", wikiName);
 
             // Set the context to be in that wiki so that both the search for XWikiMacro class objects and the
             // registration of macros registered for the current wiki will work.
@@ -204,7 +200,7 @@ public class DefaultWikiMacroInitializer implements WikiMacroInitializer, WikiMa
     private void registerMacro(DocumentReference wikiMacroDocumentReference, String wikiMacroDocumentAuthor,
         XWikiContext xcontext)
     {
-        this.logger.debug("Found macro: {}", wikiMacroDocumentReference);
+        this.logger.debug("Registering macro in document [{}]...", wikiMacroDocumentReference);
 
         DocumentReference originalAuthor = xcontext.getUserReference();
         try {
@@ -212,7 +208,8 @@ public class DefaultWikiMacroInitializer implements WikiMacroInitializer, WikiMa
 
             this.wikiMacroManager.registerWikiMacro(wikiMacroDocumentReference, macro);
 
-            this.logger.debug("Registered macro " + wikiMacroDocumentReference);
+            this.logger.debug("Macro [{}] from document [{}] is now registered.", macro.getDescriptor().getId().getId(),
+                wikiMacroDocumentReference);
         } catch (InsufficientPrivilegesException ex) {
             // Just log the exception and skip to the next.
             // We only log at the debug level here as this is not really an error

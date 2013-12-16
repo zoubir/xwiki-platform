@@ -21,6 +21,7 @@ package com.xpn.xwiki.plugin.lucene;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.concurrent.Semaphore;
@@ -59,7 +60,7 @@ import com.xpn.xwiki.test.AbstractBridgedXWikiComponentTestCase;
  */
 public class IndexUpdaterTest extends AbstractBridgedXWikiComponentTestCase
 {
-    private final static String INDEXDIR = "target/lucenetest";
+    private final static String INDEXDIR = System.getProperty("java.io.tmpdir") + File.separator + "lucenetest";
 
     private final Semaphore rebuildDone = new Semaphore(0);
 
@@ -159,6 +160,7 @@ public class IndexUpdaterTest extends AbstractBridgedXWikiComponentTestCase
             .will(returnValue(this.loremIpsum));
         this.mockXWiki.stubs().method("Param").with(ANYTHING, ANYTHING).will(new CustomStub("Implements XWiki.Param")
         {
+            @Override
             public Object invoke(Invocation invocation) throws Throwable
             {
                 return invocation.parameterValues.get(1);
@@ -167,13 +169,14 @@ public class IndexUpdaterTest extends AbstractBridgedXWikiComponentTestCase
         this.mockXWiki.stubs().method("Param").with(eq(LucenePlugin.PROP_INDEX_DIR))
             .will(returnValue(IndexUpdaterTest.INDEXDIR));
         this.mockXWiki.stubs().method("checkAccess").will(returnValue(true));
-        this.mockXWiki.stubs().method("isVirtualMode").will(returnValue(false));
         this.mockXWiki.stubs().method("getStore").will(returnValue(this.mockXWikiStoreInterface.proxy()));
         this.mockXWiki.stubs().method("search").will(returnValue(Collections.EMPTY_LIST));
         // Since "xwikicontext" will be declared before running execution context initializers as a result of
         // implementing XWIKI-8322, the message tool velocity context initializer will be triggered to call
         // the prepareResources method. So, we will just allow it.
         this.mockXWiki.stubs().method("prepareResources").with(ANYTHING);
+        this.mockXWiki.stubs().method("getVirtualWikisDatabaseNames").with(ANYTHING)
+            .will(returnValue(Arrays.asList("xwiki")));
 
         getContext().setWiki((XWiki) this.mockXWiki.proxy());
         getContext().setDatabase("wiki");
@@ -268,7 +271,7 @@ public class IndexUpdaterTest extends AbstractBridgedXWikiComponentTestCase
 
         assertEquals(1, t.totalHits);
 
-        SearchResults results = plugin.getSearchResultsFromIndexes("Ipsum", "target/lucenetest", null, getContext());
+        SearchResults results = plugin.getSearchResultsFromIndexes("Ipsum", INDEXDIR, null, getContext());
 
         assertEquals(1, results.getTotalHitcount());
     }
@@ -304,6 +307,7 @@ public class IndexUpdaterTest extends AbstractBridgedXWikiComponentTestCase
 
         Thread indexCleaner = new Thread(new Runnable()
         {
+            @Override
             public void run()
             {
                 indexUpdater.cleanIndex();

@@ -27,7 +27,7 @@
   <parent>
     <groupId>org.xwiki.platform</groupId>
     <artifactId>xwiki-platform-rest</artifactId>
-    <version>5.0-SNAPSHOT</version>
+    <version>5.4-SNAPSHOT</version>
   </parent>
   <artifactId>xwiki-platform-rest-server</artifactId>
   <packaging>jar</packaging>
@@ -60,9 +60,21 @@
       <artifactId>org.restlet.ext.jaxrs</artifactId>
       <version>${restlet.version}</version>
       <exclusions>
+        <!-- Already part of Java SE 6 -->
         <exclusion>
           <artifactId>jaxb-api</artifactId>
           <groupId>javax.xml.bind</groupId>
+        </exclusion>
+        <!-- Already part of Java SE 6 -->
+        <exclusion>
+          <artifactId>stax-api</artifactId>
+          <groupId>javax.xml.stream</groupId>
+        </exclusion>
+        <!-- We use Servlet API 2.4 at the moment but org.restlet.ext.jaxrs requires version 2.5 so we need to exclude
+             it. Luckily it seems to work fine with 2.4. -->
+        <exclusion>
+          <groupId>javax.servlet</groupId>
+          <artifactId>servlet-api</artifactId>
         </exclusion>
       </exclusions>
     </dependency>

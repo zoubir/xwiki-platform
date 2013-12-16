@@ -31,6 +31,8 @@ import java.util.Vector;
 import org.apache.batik.apps.rasterizer.DestinationType;
 import org.apache.batik.apps.rasterizer.SVGConverter;
 import org.apache.batik.apps.rasterizer.SVGConverterException;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xwiki.environment.Environment;
@@ -138,7 +140,12 @@ public class SVGPlugin extends XWikiDefaultPlugin implements XWikiPluginInterfac
 
         FileInputStream fis = new FileInputStream(ofile);
         byte[] result = new byte[(int) ofile.length()];
-        fis.read(result);
+        try {
+            fis.read(result);
+        } finally {
+            IOUtils.closeQuietly(fis);
+        }
+
         return result;
     }
 
@@ -166,11 +173,7 @@ public class SVGPlugin extends XWikiDefaultPlugin implements XWikiPluginInterfac
 
     public byte[] readSVGImage(File ofile) throws IOException
     {
-        FileInputStream fis = new FileInputStream(ofile);
-        byte[] result = new byte[(int) ofile.length()];
-        fis.read(result);
-        return result;
-
+        return FileUtils.readFileToByteArray(ofile);
     }
 
     public String writeSVGImage(String content, int height, int width) throws IOException, SVGConverterException

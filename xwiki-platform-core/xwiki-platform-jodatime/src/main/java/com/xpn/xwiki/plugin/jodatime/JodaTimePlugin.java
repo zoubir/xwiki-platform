@@ -24,9 +24,12 @@ import java.util.Locale;
 
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.joda.time.Duration;
 import org.joda.time.MutableDateTime;
+import org.joda.time.ReadableInstant;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
+import org.joda.time.format.ISODateTimeFormat;
 
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.api.Api;
@@ -42,7 +45,11 @@ import com.xpn.xwiki.plugin.XWikiPluginInterface;
  */
 public class JodaTimePlugin extends XWikiDefaultPlugin
 {
-    
+    /**
+     * ISO8601 date time formatter.
+     */
+    private static final DateTimeFormatter ISO_DATE_FORMATTER = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
+
     /**
      * @param name the plugin name, usually ignored, since plugins have a fixed name
      * @param className the name of this class, ignored
@@ -180,5 +187,30 @@ public class JodaTimePlugin extends XWikiDefaultPlugin
     public DateTimeZone getTimezone(int offsetHours, int offsetMinutes)
     {
         return DateTimeZone.forOffsetHoursMinutes(offsetHours, offsetMinutes);
+    }
+
+    /**
+     * @see org.joda.time.Duration#Duration(long)
+     */
+    public Duration getDuration(long millis)
+    {
+        return new Duration(millis);
+    }
+
+    /**
+     * @see org.joda.time.Duration#Duration(ReadableInstant, ReadableInstant)
+     */
+    public Duration getDuration(ReadableInstant from, ReadableInstant to)
+    {
+        return new Duration(from, to);
+    }
+
+    /**
+     * @return an ISO8601 date time formatter
+     * @since 5.2RC1
+     */
+    public DateTimeFormatter getISODateTimeFormatter()
+    {
+        return ISO_DATE_FORMATTER;
     }
 }

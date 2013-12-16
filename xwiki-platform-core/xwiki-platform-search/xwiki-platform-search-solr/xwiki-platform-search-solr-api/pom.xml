@@ -27,14 +27,15 @@
   <parent>
     <groupId>org.xwiki.platform</groupId>
     <artifactId>xwiki-platform-search-solr</artifactId>
-    <version>5.0-SNAPSHOT</version>
+    <version>5.4-SNAPSHOT</version>
   </parent>
   <artifactId>xwiki-platform-search-solr-api</artifactId>
   <name>XWiki Platform - Search - Solr - API</name>
-  <description>Solr engine management: configuration, indexing, listeners, script service, etc. This module does not handle the search queries.</description>
+  <description>Solr engine management: configuration, indexing, listeners, script service, etc. This module does not handle the search queries</description>
   <properties>
-    <solr.version>4.0.0</solr.version>
-    <xwiki.jacoco.instructionRatio>37.86</xwiki.jacoco.instructionRatio>
+    <!-- Name to display by the Extension Manager -->
+    <xwiki.extension.name>Solr Search API</xwiki.extension.name>
+    <xwiki.jacoco.instructionRatio>0.48</xwiki.jacoco.instructionRatio>
   </properties>
   <dependencies>
     <!-- Solr -->
@@ -55,25 +56,18 @@
     <dependency>
       <groupId>org.codehaus.woodstox</groupId>
       <artifactId>woodstox-core-asl</artifactId>
+      <exclusions>
+        <!-- Already part of Java SE 6 -->
+      	<exclusion>
+      	  <artifactId>stax-api</artifactId>
+      	  <groupId>javax.xml.stream</groupId>
+      	</exclusion>
+      </exclusions>
     </dependency>
     <!-- Embedded Solr instance. -->
     <dependency>
       <groupId>org.apache.solr</groupId>
       <artifactId>solr-core</artifactId>
-      <version>${solr.version}</version>
-      <exclusions>
-        <!-- We want to choose the SLF4J binding only when XWiki is packaged. -->
-        <exclusion>
-          <groupId>org.slf4j</groupId>
-          <artifactId>slf4j-jdk14</artifactId>
-        </exclusion>
-        <!-- Solr is using an old version of Woodstox but we need the newer version which is used by our Cache
-             module -->
-        <exclusion>
-          <groupId>org.codehaus.woodstox</groupId>
-          <artifactId>wstx-asl</artifactId>
-        </exclusion>
-      </exclusions>
     </dependency>
     <dependency>
       <groupId>org.apache.solr</groupId>
@@ -126,13 +120,26 @@
       <artifactId>xwiki-platform-bridge</artifactId>
       <version>${project.version}</version>
     </dependency>
-    
+    <dependency>
+      <groupId>org.xwiki.platform</groupId>
+      <artifactId>xwiki-platform-query-manager</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <!-- This is needed at runtime by solrconfig.xml. -->
+      <groupId>org.xwiki.platform</groupId>
+      <artifactId>xwiki-platform-search-solr-plugin</artifactId>
+      <version>${project.version}</version>
+      <scope>runtime</scope>
+    </dependency>
+
     <!-- Testing dependencies -->
 
     <!-- Since we're mocking a class (XWiki) we need those -->
     <dependency>
-      <groupId>org.jmock</groupId>
-      <artifactId>jmock-legacy</artifactId>
+      <groupId>org.xwiki.commons</groupId>
+      <artifactId>xwiki-commons-test-component</artifactId>
+      <version>${commons.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -141,14 +148,17 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
-  
   <build>
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-checkstyle-plugin</artifactId>
         <configuration>
-          <suppressionsLocation>${basedir}/src/checkstyle/checkstyle-suppressions.xml</suppressionsLocation>
+          <excludes>
+            **/DefaultSolrIndexer.java,
+            **/SolrIndexEventListener.java,
+            **/AbstractSolrMetadataExtractor.java
+          </excludes>
         </configuration>
       </plugin>
     </plugins>

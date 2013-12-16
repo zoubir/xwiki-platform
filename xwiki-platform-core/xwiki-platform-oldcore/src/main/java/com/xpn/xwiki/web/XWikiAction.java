@@ -20,12 +20,15 @@
 package com.xpn.xwiki.web;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Vector;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.struts.action.Action;
 import org.apache.struts.action.ActionForm;
@@ -41,6 +44,9 @@ import org.xwiki.container.servlet.ServletContainerException;
 import org.xwiki.container.servlet.ServletContainerInitializer;
 import org.xwiki.context.Execution;
 import org.xwiki.csrf.CSRFToken;
+import org.xwiki.model.EntityType;
+import org.xwiki.model.reference.DocumentReference;
+import org.xwiki.model.reference.EntityReferenceValueProvider;
 import org.xwiki.observation.ObservationManager;
 import org.xwiki.velocity.VelocityManager;
 
@@ -90,6 +96,13 @@ public abstract class XWikiAction extends Action
     private static final Logger LOGGER = LoggerFactory.getLogger(XWikiAction.class);
 
     /**
+     * Actions that need to be resolved on the main wiki instead of the current non-existing wiki. This is used to be
+     * able to render the skin even on a wiki that doesn't exist.
+     */
+    private static final List<String> ACTIONS_IGNORED_WHEN_WIKI_DOES_NOT_EXIST = Arrays.asList("skin", "ssx", "jsx",
+        "download");
+
+    /**
      * Handle server requests.
      * 
      * @param mapping The ActionMapping used to select this instance
@@ -130,19 +143,69 @@ public abstract class XWikiAction extends Action
         String docName = "";
 
         try {
-            // Verify that the requested wiki exists
+            String action = context.getAction();
+
+            // Initialize context.getWiki() with the main wiki
             XWiki xwiki;
+
+            // Verify that the requested wiki exists
             try {
                 xwiki = XWiki.getXWiki(context);
             } catch (XWikiException e) {
-                // We're checking if there are any redirects when the wiki asked by the user doesn't exist
-                // because we want the ability to redirect somewhere when the wiki asked doesn't exist
-                // (like for example going to a special error page).
+                // If the wiki asked by the user doesn't exist, then we first attempt to use any existing global
+                // redirects. If there are none, then we display the specific error template.
                 if (e.getCode() == XWikiException.ERROR_XWIKI_DOES_NOT_EXIST) {
+                    xwiki = XWiki.getMainXWiki(context);
+
+                    // Initialize the url factory
+                    XWikiURLFactory urlf = xwiki.getURLFactoryService().createURLFactory(context.getMode(), context);
+                    context.setURLFactory(urlf);
+
+                    // Initialize the velocity context and its bindings so that it may be used in the velocity templates that we
+                    // are parsing below.
+                    VelocityManager velocityManager = Utils.getComponent(VelocityManager.class);
+                    VelocityContext vcontext = velocityManager.getVelocityContext();
+
                     if (!sendGlobalRedirect(context.getResponse(), context.getURL().toString(), context)) {
-                        context.getResponse().sendRedirect(context.getWiki().Param("xwiki.virtual.redirect"));
+                        // Starting XWiki 5.0M2, 'xwiki.virtual.redirect' was removed. Warn users still using it.
+                        if (!StringUtils.isEmpty(context.getWiki().Param("xwiki.virtual.redirect"))) {
+                            LOGGER.warn(String.format("%s %s", "'xwiki.virtual.redirect' is no longer supported.",
+                                "Please update your configuration and/or see XWIKI-8914 for more details."));
+                        }
+
+                        // Display the error template only for actions that are not ignored
+                        if (!ACTIONS_IGNORED_WHEN_WIKI_DOES_NOT_EXIST.contains(action)) {
+
+                            // Add localization resources to the context
+                            xwiki.prepareResources(context);
+
+                            // Set the main home page in the main space of the main wiki as the current requested entity
+                            // since we cannot set the non existing one as it would generate errors obviously...
+                            EntityReferenceValueProvider valueProvider =
+                                Utils.getComponent(EntityReferenceValueProvider.class);
+                            xwiki.setPhonyDocument(new DocumentReference(
+                                valueProvider.getDefaultValue(EntityType.WIKI),
+                                valueProvider.getDefaultValue(EntityType.SPACE),
+                                valueProvider.getDefaultValue(EntityType.DOCUMENT)), context, vcontext);
+
+                            // Parse the error template
+                            Utils.parseTemplate(context.getWiki().Param("xwiki.wiki_exception", "wikidoesnotexist"),
+                                context);
+
+                            // Error template was displayed, stop here.
+                            return null;
+                        }
+
+                        // At this point, we allow regular execution of the ignored action because even if the wiki
+                        // does not exist, we still need to allow UI resources to be retrieved (from the filesystem
+                        // and the main wiki) or our error template will not be rendered properly.
+
+                        // Proceed with serving the main wiki
+
+                    } else {
+                        // Global redirect was executed, stop here.
+                        return null;
                     }
-                    return null;
                 } else {
                     LOGGER.error("Uncaught exception during XWiki initialisation:", e);
                     throw e;
@@ -285,6 +348,12 @@ public abstract class XWikiAction extends Action
                     }
                     vcontext.put("exp", e);
                     if (LOGGER.isWarnEnabled()) {
+                        // Don't log "Broken Pipe" exceptions since they're not real errors and we don't want to pollute
+                        // the logs with unnecessary stack traces. It just means the client side has cancelled the
+                        // connection.
+                        if (ExceptionUtils.getRootCauseMessage(e).equals("IOException: Broken pipe")) {
+                            return null;
+                        }
                         LOGGER.warn("Uncaught exception: " + e.getMessage(), e);
                     }
                     // If the request is an AJAX request, we don't return a whole HTML page, but just the exception
@@ -397,7 +466,7 @@ public abstract class XWikiAction extends Action
 
         try {
             containerInitializer.initializeRequest(context.getRequest().getHttpServletRequest(), context);
-            containerInitializer.initializeResponse(context.getResponse().getHttpServletResponse());
+            containerInitializer.initializeResponse(context.getResponse());
             containerInitializer.initializeSession(context.getRequest().getHttpServletRequest());
         } catch (ServletContainerException e) {
             throw new ServletException("Failed to initialize Request/Response or Session", e);
@@ -496,7 +565,7 @@ public abstract class XWikiAction extends Action
     {
         try {
             if (url != null) {
-                response.sendRedirect(url);
+                response.sendRedirect(response.encodeRedirectURL(url));
             }
         } catch (IOException e) {
             Object[] args = {url};

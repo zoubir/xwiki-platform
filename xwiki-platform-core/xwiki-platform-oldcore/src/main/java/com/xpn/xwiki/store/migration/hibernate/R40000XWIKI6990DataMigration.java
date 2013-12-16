@@ -632,12 +632,11 @@ public class R40000XWIKI6990DataMigration extends AbstractHibernateDataMigration
      * @param store the hibernate store
      * @param callback the callback to be called
      * @param context th current XWikiContext
-     * @throws DataMigrationException when an migration error occurs
      * @throws XWikiException when an unexpected error occurs
      */
     private void processCustomMappings(final XWikiHibernateStore store, final CustomMappingCallback callback,
         final XWikiContext context)
-        throws DataMigrationException, XWikiException
+        throws XWikiException
     {
         if (store.executeRead(context, new HibernateCallback<Boolean>()
         {
@@ -962,7 +961,7 @@ public class R40000XWIKI6990DataMigration extends AbstractHibernateDataMigration
             }
 
             private void fillCustomMappingMap(XWikiHibernateStore store, XWikiContext context)
-                throws XWikiException, DataMigrationException
+                throws XWikiException
             {
                 processCustomMappings(store, new CustomMappingCallback()
                 {
@@ -1729,12 +1728,12 @@ public class R40000XWIKI6990DataMigration extends AbstractHibernateDataMigration
                 @Override
                 public String doInHibernate(Session session) throws HibernateException
                 {
-                    Query query = session.createSQLQuery("SHOW CREATE TABLE xwikidoc");
+                    Query query = session.createSQLQuery("SHOW TABLE STATUS like 'xwikidoc'");
                     return (String) ((Object[]) query.uniqueResult())[1];
                 }
             });
 
-        this.isMySQLMyISAM = (createTable != null && createTable.contains("ENGINE=MyISAM"));
+        this.isMySQLMyISAM = (createTable != null && createTable.equals("MyISAM"));
     }
 
     @Override

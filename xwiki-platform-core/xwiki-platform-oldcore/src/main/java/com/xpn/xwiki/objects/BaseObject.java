@@ -37,10 +37,10 @@ import org.xwiki.model.reference.SpaceReference;
 
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
+import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.objects.classes.BaseClass;
 import com.xpn.xwiki.objects.classes.PropertyClass;
 import com.xpn.xwiki.web.Utils;
-import com.xpn.xwiki.doc.XWikiDocument;
 
 public class BaseObject extends BaseCollection<BaseObjectReference> implements ObjectInterface, Serializable, Cloneable
 {
@@ -53,11 +53,6 @@ public class BaseObject extends BaseCollection<BaseObjectReference> implements O
      */
     private DocumentReferenceResolver<String> currentMixedDocumentReferenceResolver = Utils.getComponent(
         DocumentReferenceResolver.TYPE_STRING, "currentmixed");
-
-    /**
-     * The owner document, if this object was obtained from a document.
-     */
-    private XWikiDocument ownerDocument;
 
     /**
      * {@inheritDoc}
@@ -102,13 +97,13 @@ public class BaseObject extends BaseCollection<BaseObjectReference> implements O
     protected BaseObjectReference createReference()
     {
         BaseObjectReference reference;
-    
+
         if (getXClassReference() != null && getDocumentReference() != null) {
             reference = new BaseObjectReference(getXClassReference(), getNumber(), getDocumentReference());
         } else {
             reference = null;
         }
-        
+
         return reference;
     }
 
@@ -344,11 +339,11 @@ public class BaseObject extends BaseCollection<BaseObjectReference> implements O
                 if (pclass != null) {
                     // Put the values as they would be displayed in the interface
                     String newPropertyValue =
-                        (newProperty.getValue() instanceof String || pclass == null) ? newProperty.toText() : pclass
-                            .displayView(propertyName, this, context);
+                        (newProperty.getValue() instanceof String) ? newProperty.toText() : pclass.displayView(
+                            propertyName, this, context);
                     String oldPropertyValue =
-                        (oldProperty.getValue() instanceof String || pclass == null) ? oldProperty.toText() : pclass
-                            .displayView(propertyName, oldObject, context);
+                        (oldProperty.getValue() instanceof String) ? oldProperty.toText() : pclass.displayView(
+                            propertyName, oldObject, context);
                     difflist.add(new ObjectDiff(getXClassReference(), getNumber(), getGuid(),
                         ObjectDiff.ACTION_PROPERTYCHANGED, propertyName, propertyType, oldPropertyValue,
                         newPropertyValue));
@@ -415,7 +410,7 @@ public class BaseObject extends BaseCollection<BaseObjectReference> implements O
         }
 
         if (prop != null) {
-            prop.setOwnerDocument(ownerDocument);
+            prop.setOwnerDocument(getOwnerDocument());
             safeput(fieldname, prop);
         }
     }
@@ -432,16 +427,16 @@ public class BaseObject extends BaseCollection<BaseObjectReference> implements O
 
     /**
      * Set the owner document of this base object.
-     *
-     * @param owner The owner document.
+     * 
+     * @param ownerDocument The owner document.
      * @since 4.3M2
      */
     public void setOwnerDocument(XWikiDocument ownerDocument)
     {
-        this.ownerDocument = ownerDocument;
-        for (String propertyName : getPropertyList()) {
-            BaseProperty property = (BaseProperty) getField(propertyName);
-            property.setOwnerDocument(ownerDocument);
+        super.setOwnerDocument(ownerDocument);
+
+        if (this.ownerDocument != null) {
+            setDocumentReference(this.ownerDocument.getDocumentReference());
         }
     }
 }

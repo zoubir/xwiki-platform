@@ -47,15 +47,16 @@ import org.xwiki.extension.event.ExtensionUninstalledEvent;
 import org.xwiki.extension.event.ExtensionUpgradedEvent;
 import org.xwiki.extension.repository.DefaultExtensionRepositoryDescriptor;
 import org.xwiki.extension.repository.InstalledExtensionRepository;
+import org.xwiki.extension.repository.internal.RepositoryUtils;
 import org.xwiki.extension.repository.internal.local.AbstractCachedExtensionRepository;
 import org.xwiki.extension.repository.result.CollectionIterableResult;
 import org.xwiki.extension.repository.result.IterableResult;
 import org.xwiki.extension.repository.search.SearchException;
 import org.xwiki.extension.xar.internal.handler.XarExtensionHandler;
-import org.xwiki.extension.xar.internal.handler.packager.Packager;
 import org.xwiki.observation.EventListener;
 import org.xwiki.observation.ObservationManager;
 import org.xwiki.observation.event.Event;
+import org.xwiki.wikistream.xar.internal.XarException;
 
 /**
  * Local repository proxy for XAR extensions.
@@ -74,9 +75,6 @@ public class XarInstalledExtensionRepository extends AbstractCachedExtensionRepo
 
     @Inject
     private transient InstalledExtensionRepository installedRepository;
-
-    @Inject
-    private transient Packager packager;
 
     @Inject
     private transient ObservationManager observation;
@@ -103,9 +101,11 @@ public class XarInstalledExtensionRepository extends AbstractCachedExtensionRepo
                 LocalExtension extension = (LocalExtension) source;
                 if (extension.getType().equals(XarExtensionHandler.TYPE)) {
                     updateXarExtension(extension);
-                    
+
                     if (data != null) {
-                        updateXarExtension((LocalExtension) data);
+                        for (InstalledExtension installedExtension : (Collection<InstalledExtension>) data) {
+                            updateXarExtension(installedExtension);
+                        }
                     }
                 }
             }
@@ -134,16 +134,16 @@ public class XarInstalledExtensionRepository extends AbstractCachedExtensionRepo
             if (extension instanceof InstalledExtension) {
                 try {
                     addXarExtension((InstalledExtension) extension);
-                } catch (IOException e) {
+                } catch (Exception e) {
                     this.logger.error("Failed to parse extension [" + extension + "]", e);
                 }
             }
         }
     }
 
-    private void addXarExtension(InstalledExtension extension) throws IOException
+    private void addXarExtension(InstalledExtension extension) throws IOException, XarException
     {
-        XarInstalledExtension xarExtension = new XarInstalledExtension(extension, this, this.packager);
+        XarInstalledExtension xarExtension = new XarInstalledExtension(extension, this);
 
         addCachedExtension(xarExtension);
     }
@@ -159,7 +159,7 @@ public class XarInstalledExtensionRepository extends AbstractCachedExtensionRepo
             if (localExtension.getType().equalsIgnoreCase(XarExtensionHandler.TYPE)) {
                 try {
                     addXarExtension(localExtension);
-                } catch (IOException e) {
+                } catch (Exception e) {
                     this.logger.error("Failed to parse extension [" + localExtension + "]", e);
                 }
             }
@@ -204,10 +204,12 @@ public class XarInstalledExtensionRepository extends AbstractCachedExtensionRepo
     {
         InstalledExtension extension = this.installedRepository.getInstalledExtension(id, namespace);
 
-        if (extension.getType().equals(XarExtensionHandler.TYPE)) {
-            extension = this.extensions.get(extension.getId());
-        } else {
-            extension = null;
+        if (extension != null) {
+            if (extension.getType().equals(XarExtensionHandler.TYPE)) {
+                extension = this.extensions.get(extension.getId());
+            } else {
+                extension = null;
+            }
         }
 
         return extension;
@@ -248,17 +250,32 @@ public class XarInstalledExtensionRepository extends AbstractCachedExtensionRepo
     @Override
     public IterableResult<Extension> search(String pattern, int offset, int nb) throws SearchException
     {
-        Pattern patternMatcher = Pattern.compile(".*" + pattern + ".*");
+        Pattern patternMatcher = createPatternMatcher(pattern);
 
         List<Extension> result = new ArrayList<Extension>();
 
         for (XarInstalledExtension extension : this.extensions.values()) {
-            if (patternMatcher.matcher(extension.getId().getId()).matches()
-                || patternMatcher.matcher(extension.getDescription()).matches()
-                || patternMatcher.matcher(extension.getSummary()).matches()
-                || patternMatcher.matcher(extension.getName()).matches()
-                || patternMatcher.matcher(extension.getFeatures().toString()).matches()) {
+            if (patternMatcher == null || RepositoryUtils.matches(patternMatcher, extension)) {
                 result.add(extension);
+            }
+        }
+
+        return new CollectionIterableResult<Extension>(this.extensions.size(), offset, result);
+    }
+
+    @Override
+    public IterableResult<Extension> searchInstalledExtensions(String pattern, String namespace, int offset, int nb)
+        throws SearchException
+    {
+        Pattern patternMatcher = createPatternMatcher(pattern);
+
+        List<Extension> result = new ArrayList<Extension>();
+
+        for (XarInstalledExtension extension : this.extensions.values()) {
+            if (extension.isInstalled(namespace)) {
+                if (patternMatcher == null || RepositoryUtils.matches(patternMatcher, extension)) {
+                    result.add(extension);
+                }
             }
         }
 

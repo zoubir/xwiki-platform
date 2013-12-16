@@ -27,17 +27,17 @@
   <parent>
     <groupId>org.xwiki.platform</groupId>
     <artifactId>xwiki-platform</artifactId>
-    <version>5.0-SNAPSHOT</version>
+    <version>5.4-SNAPSHOT</version>
   </parent>
   <artifactId>xwiki-platform-core</artifactId>
   <name>XWiki Platform - Core - Parent POM</name>
   <packaging>pom</packaging>
   <description>XWiki Platform - Core - Parent POM</description>
   <properties>
-    <gwt.version>2.5.0-rc1</gwt.version>
-    <gwt.maven.plugin.version>2.5.0-rc1</gwt.maven.plugin.version>
-    <smartgwt.version>3.0</smartgwt.version>
-    <!-- JS/CSS minification is on by default -->
+    <gwt.version>2.5.1</gwt.version>
+    <gwt.maven.plugin.version>2.5.1</gwt.maven.plugin.version>
+    <!-- JS/CSS minification is on by default, this property is used in order to able to skip minification when the
+         debug profile is active. It can also be used from the command line to skip minification -->
     <xwiki.minification.skip>false</xwiki.minification.skip>
   </properties>
   <dependencies>
@@ -55,31 +55,74 @@
       <dependency>
         <groupId>org.python</groupId>
         <artifactId>jython-standalone</artifactId>
-        <version>2.5.3</version>
+        <version>2.5.4-rc1</version>
       </dependency>
       <!-- Used on remote observation and also by JBossCache/Infinispan (even if it does not really use it) -->
       <dependency>
         <groupId>org.jgroups</groupId>
         <artifactId>jgroups</artifactId>
-        <version>3.2.7.Final</version>
+        <version>3.3.4.Final</version>
       </dependency>
       <!-- Apache Tika used by Lucene and Office modules -->
       <dependency>
         <groupId>org.apache.tika</groupId>
         <artifactId>tika-core</artifactId>
-        <version>1.3</version>
+        <version>1.4</version>
       </dependency>
       <dependency>
         <groupId>org.apache.tika</groupId>
         <artifactId>tika-parsers</artifactId>
-        <version>1.3</version>
+        <version>1.4</version>
         <exclusions>
+          <!-- We want to choose the SLF4J binding only when XWiki is packaged. -->
           <exclusion>
-            <!-- Includes classes from an older version of NekoHTML preventing us from using newer versions. -->
-            <groupId>de.l3s.boilerpipe</groupId>
-            <artifactId>boilerpipe</artifactId>
+            <groupId>commons-logging</groupId>
+            <artifactId>commons-logging</artifactId>
+          </exclusion>
+          <!-- TODO: Remove when https://github.com/Gagravarr/VorbisJava/issues/2 is fixed -->
+          <exclusion>
+            <groupId>org.gagravarr</groupId>
+            <artifactId>vorbis-java-core</artifactId>
+          </exclusion>
+          <!-- Tika Parsers 1.3 depends on bcprov-jdk15 1.45 but some XWiki extensions (such as the CRaSH integration)
+               require bcprov-jdk16, thus we exclude it and add a dependency on it just after to the latest version -->
+          <exclusion>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk15</artifactId>
+          </exclusion>
+          <!-- Tika Parsers 1.3 depends on bcmail-jdk15 1.45 but some XWiki extensions (such as the CRaSH integration)
+               require bcmail-jdk16, thus we exclude it and add a dependency on it just after to the latest version -->
+          <exclusion>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcmail-jdk15</artifactId>
+          </exclusion>
+          <!-- Tika triggers the wrong asm artifact so we have to take care of that ourself -->
+      	  <exclusion>
+      	    <artifactId>asm-debug-all</artifactId>
+      	    <groupId>org.ow2.asm</groupId>
           </exclusion>
         </exclusions>
+      </dependency>
+      <!-- See the explanation in the tika-parsers exclusion above -->
+      <dependency>
+        <groupId>org.ow2.asm</groupId>
+        <artifactId>asm</artifactId>
+        <version>4.1</version>
+      </dependency>
+      <dependency>
+        <groupId>org.bouncycastle</groupId>
+        <artifactId>bcprov-jdk15on</artifactId>
+        <version>1.49</version>
+      </dependency>
+      <dependency>
+        <groupId>org.bouncycastle</groupId>
+        <artifactId>bcpkix-jdk15on</artifactId>
+        <version>1.49</version>
+      </dependency>
+      <dependency>
+        <groupId>org.bouncycastle</groupId>
+        <artifactId>bcmail-jdk15on</artifactId>
+        <version>1.49</version>
       </dependency>
       <!-- Rome is used in rss macro and feed api modules and in Tika -->
       <dependency>
@@ -135,9 +178,9 @@
       </dependency>
       <!-- Used by xwiki-platform-oldcore and xwiki-platform-captcha -->
       <dependency>
-        <groupId>struts</groupId>
-        <artifactId>struts</artifactId>
-        <version>1.2.9</version>
+        <groupId>org.apache.struts</groupId>
+        <artifactId>struts-core</artifactId>
+        <version>1.3.10</version>
         <exclusions>
           <!-- There is conflict with hibernate antlr-2.7.6 dependency -->
           <exclusion>
@@ -169,15 +212,6 @@
         <artifactId>gwt-servlet</artifactId>
         <version>${gwt.version}</version>
       </dependency>
-      <dependency>
-        <!-- SmartGWT is used only for its tree widget. -->
-        <!-- If you remove or move this dependency don't forget to update the repository section at the bottom. -->
-        <groupId>com.smartgwt</groupId>
-        <artifactId>smartgwt</artifactId>
-        <version>${smartgwt.version}</version>
-        <!-- Only needed at build time -->
-        <scope>provided</scope>
-      </dependency>
       <!-- Used at least in Solr Search and in Infinispan Cache -->
       <dependency>
         <groupId>org.codehaus.woodstox</groupId>
@@ -189,6 +223,19 @@
         <groupId>javax.transaction</groupId>
         <artifactId>jta</artifactId>
         <version>1.1</version>
+      </dependency>
+      <!-- Make sure we exclude iText which we don't need and which incidentally would bring a bad dependency version
+           on bcprov and bcmail for jdk14. -->
+      <dependency>
+        <groupId>org.jfree</groupId>
+        <artifactId>jfreechart</artifactId>
+        <version>1.0.14</version>
+        <exclusions>
+          <exclusion>
+            <groupId>com.lowagie</groupId>
+            <artifactId>itext</artifactId>
+          </exclusion>
+        </exclusions>
       </dependency>
     </dependencies>
   </dependencyManagement>
@@ -302,15 +349,15 @@
         <configuration>
           <!-- List of specific CLIRR excludes. Example:
 
-               <difference>
-                 <className>org/xwiki/ircbot/IRCBot</className>
-                 <method>void initialize(java.lang.String)</method>
-                 <differenceType>7012</differenceType>
-                 <justification>IRCBot is still a young API. Added a new initialize() method to support installing the
-                 IRC Bot application in a subwiki</justification>
-               </difference>
+            <difference>
+              <differenceType>7012</differenceType>
+              <className>org/xwiki/ircbot/IRCBot</className>
+              <method>void initialize(java.lang.String)</method>
+              <justification>IRCBot is still a young API. Added a new initialize() method to support installing the
+                IRC Bot application in a subwiki</justification>
+            </difference>
 
-               See http://mojo.codehaus.org/clirr-maven-plugin/examples/ignored-differences.html
+             See http://mojo.codehaus.org/clirr-maven-plugin/examples/ignored-differences.html
           -->
           <ignored>
             <!-- Remove the following ignores after we release the current version as final -->
@@ -319,6 +366,8 @@
             <exclude>**/internal/**</exclude>
             <exclude>**/test/**</exclude>
             <!-- Remove the following excludes after we release the current version as final -->
+            <!-- Lots of refactoring in WikiStream -->
+            <exclude>org/xwiki/wikistream/**</exclude>
           </excludes>
         </configuration>
       </plugin>
@@ -334,11 +383,13 @@
   </build>
   <modules>
     <!-- Sorted Alphabetically -->
+    <module>xwiki-platform-activeinstalls</module>
     <module>xwiki-platform-activitystream</module>
     <module>xwiki-platform-administration</module>
     <module>xwiki-platform-annotations</module>
     <module>xwiki-platform-application-manager</module>
     <module>xwiki-platform-appwithinminutes</module>
+    <module>xwiki-platform-attachment</module>
     <module>xwiki-platform-autotag</module>
     <module>xwiki-platform-blog</module>
     <module>xwiki-platform-bridge</module>
@@ -363,7 +414,9 @@
     <module>xwiki-platform-git</module>
     <module>xwiki-platform-groovy</module>
     <module>xwiki-platform-gwt</module>
+    <module>xwiki-platform-help</module>
     <module>xwiki-platform-index</module>
+    <module>xwiki-platform-instance</module>
     <module>xwiki-platform-invitation</module>
     <module>xwiki-platform-ircbot</module>
     <module>xwiki-platform-jira</module>
@@ -374,6 +427,7 @@
     <module>xwiki-platform-localization</module>
     <module>xwiki-platform-logging</module>
     <module>xwiki-platform-mailsender</module>
+    <module>xwiki-platform-menu</module>
     <module>xwiki-platform-messagestream</module>
     <module>xwiki-platform-model</module>
     <module>xwiki-platform-observation</module>
@@ -382,9 +436,12 @@
     <module>xwiki-platform-panels</module>
     <module>xwiki-platform-query</module>
     <module>xwiki-platform-refactoring</module>
+    <module>xwiki-platform-release</module>
     <module>xwiki-platform-rendering</module>
     <module>xwiki-platform-repository</module>
+    <module>xwiki-platform-resource</module>
     <module>xwiki-platform-rest</module>
+    <module>xwiki-platform-sandbox</module>
     <module>xwiki-platform-scheduler</module>
     <module>xwiki-platform-search</module>
     <module>xwiki-platform-security</module>
@@ -402,8 +459,9 @@
     <module>xwiki-platform-watchlist</module>
     <module>xwiki-platform-web</module>
     <module>xwiki-platform-webdav</module>
+    <module>xwiki-platform-wiki</module>
+    <module>xwiki-platform-wikistream</module>
     <module>xwiki-platform-wiki-manager</module>
-    <module>xwiki-platform-workspace</module>
     <module>xwiki-platform-wysiwyg</module>
     <module>xwiki-platform-xml</module>
     <module>xwiki-platform-xmlrpc</module>

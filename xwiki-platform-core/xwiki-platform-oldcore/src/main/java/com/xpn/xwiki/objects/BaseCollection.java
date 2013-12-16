@@ -50,6 +50,7 @@ import org.xwiki.model.reference.EntityReferenceResolver;
 
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
+import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.doc.merge.CollisionException;
 import com.xpn.xwiki.doc.merge.MergeConfiguration;
 import com.xpn.xwiki.doc.merge.MergeResult;
@@ -128,6 +129,13 @@ public abstract class BaseCollection<R extends EntityReference> extends BaseElem
         this.number = number;
     }
 
+    /**
+     * Marks a field as scheduled for removal when saving this entity. Should only be used internally, use
+     * {@link #removeField(String)} to actually remove a field.
+     *
+     * @param field the field to remove, must belong to this entity
+     * @see #removeField(String)
+     */
     public void addPropertyForRemoval(PropertyInterface field)
     {
         getFieldsToRemove().add(field);
@@ -252,6 +260,7 @@ public abstract class BaseCollection<R extends EntityReference> extends BaseElem
     /**
      * @since 2.2M1
      */
+    @Override
     public BaseClass getXClass(XWikiContext context)
     {
         BaseClass baseClass = null;
@@ -425,17 +434,17 @@ public abstract class BaseCollection<R extends EntityReference> extends BaseElem
         safeput(name, property);
     }
 
-    public Set< ? > getSetValue(String name)
+    public Set<?> getSetValue(String name)
     {
         ListProperty prop = (ListProperty) safeget(name);
         if (prop == null) {
             return new HashSet<Object>();
         } else {
-            return new HashSet<Object>((Collection< ? >) prop.getValue());
+            return new HashSet<Object>((Collection<?>) prop.getValue());
         }
     }
 
-    public void setSetValue(String name, Set< ? > value)
+    public void setSetValue(String name, Set<?> value)
     {
         ListProperty property = new ListProperty();
         property.setValue(value);
@@ -492,6 +501,10 @@ public abstract class BaseCollection<R extends EntityReference> extends BaseElem
     public void addField(String name, PropertyInterface element)
     {
         this.fields.put(name, element);
+
+        if (element instanceof BaseElement) {
+            ((BaseElement) element).setOwnerDocument(getOwnerDocument());
+        }
     }
 
     public void removeField(String name)
@@ -752,16 +765,6 @@ public abstract class BaseCollection<R extends EntityReference> extends BaseElem
     }
 
     @Override
-    public void setName(String name)
-    {
-        super.setName(name);
-
-        // We force to refresh the XClass reference so that next time it's retrieved again it'll be resolved against
-        // the new document reference.
-        this.xClassReferenceCache = null;
-    }
-
-    @Override
     public void merge(ElementInterface previousElement, ElementInterface newElement, MergeConfiguration configuration,
         XWikiContext context, MergeResult mergeResult)
     {
@@ -863,5 +866,23 @@ public abstract class BaseCollection<R extends EntityReference> extends BaseElem
         }
 
         return modified;
+    }
+
+    /**
+     * Set the owner document of this base object.
+     * 
+     * @param ownerDocument The owner document.
+     * @since 5.3M1
+     */
+    public void setOwnerDocument(XWikiDocument ownerDocument)
+    {
+        super.setOwnerDocument(ownerDocument);
+
+        for (String propertyName : getPropertyList()) {
+            PropertyInterface property = getField(propertyName);
+            if (property instanceof BaseElement) {
+                ((BaseElement) property).setOwnerDocument(ownerDocument);
+            }
+        }
     }
 }

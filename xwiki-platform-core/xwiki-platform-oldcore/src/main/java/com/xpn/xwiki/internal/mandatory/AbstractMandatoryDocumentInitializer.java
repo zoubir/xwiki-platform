@@ -31,6 +31,8 @@ import org.xwiki.sheet.SheetBinder;
 import com.xpn.xwiki.XWiki;
 import com.xpn.xwiki.doc.MandatoryDocumentInitializer;
 import com.xpn.xwiki.doc.XWikiDocument;
+import com.xpn.xwiki.objects.classes.BaseClass;
+import com.xpn.xwiki.objects.classes.BooleanClass;
 import com.xpn.xwiki.user.api.XWikiRightService;
 
 /**
@@ -90,22 +92,25 @@ public abstract class AbstractMandatoryDocumentInitializer implements MandatoryD
     {
         boolean needsUpdate = false;
 
-        if (StringUtils.isBlank(document.getCreator())) {
+        if (document.getCreatorReference() == null) {
             needsUpdate = true;
             document.setCreator(XWikiRightService.SUPERADMIN_USER);
         }
-        if (StringUtils.isBlank(document.getAuthor())) {
+        if (document.getAuthorReference() == null) {
             needsUpdate = true;
-            document.setAuthor(document.getCreator());
+            document.setAuthorReference(document.getCreatorReference());
         }
+
         if (StringUtils.isBlank(document.getParent())) {
             needsUpdate = true;
             document.setParent("XWiki.XWikiClasses");
         }
+
         if (StringUtils.isBlank(document.getTitle())) {
             needsUpdate = true;
             document.setTitle(title);
         }
+
         if (!document.isHidden()) {
             needsUpdate = true;
             document.setHidden(true);
@@ -119,5 +124,39 @@ public abstract class AbstractMandatoryDocumentInitializer implements MandatoryD
         }
 
         return needsUpdate;
+    }
+
+    /**
+     * Set the default value of a boolean field of a XWiki class.
+     *
+     * @param baseClass the XWiki class.
+     * @param fieldName the name of the field.
+     * @param value the default value.
+     * @return true if <code>baseClass</code> modified.
+     */
+    protected boolean updateBooleanClassDefaultValue(BaseClass baseClass, String fieldName, Boolean value)
+    {
+        boolean needsUpdate = false;
+
+        BooleanClass bc = (BooleanClass) baseClass.get(fieldName);
+
+        int old = bc.getDefaultValue();
+        int intvalue = intFromBoolean(value);
+
+        if (intvalue != old) {
+            bc.setDefaultValue(intvalue);
+            needsUpdate = true;
+        }
+
+        return needsUpdate;
+    }
+
+    /**
+     * @param value the {@link Boolean} value to convert.
+     * @return the converted <code>int</code> value.
+     */
+    protected int intFromBoolean(Boolean value)
+    {
+        return value == null ? -1 : (value.booleanValue() ? 1 : 0);
     }
 }

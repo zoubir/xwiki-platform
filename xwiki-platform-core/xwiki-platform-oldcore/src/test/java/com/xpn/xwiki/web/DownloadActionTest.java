@@ -36,6 +36,7 @@ import org.junit.Test;
 import org.xwiki.model.reference.DocumentReference;
 
 import com.xpn.xwiki.XWiki;
+import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
 import com.xpn.xwiki.doc.XWikiAttachment;
 import com.xpn.xwiki.doc.XWikiDocument;
@@ -119,6 +120,10 @@ public class DownloadActionTest extends AbstractBridgedComponentTestCase
                 allowing(DownloadActionTest.this.response).setCharacterEncoding(with(""));
                 allowing(DownloadActionTest.this.response).getOutputStream();
                 will(returnValue(DownloadActionTest.this.out));
+                allowing(DownloadActionTest.this.xwiki).getRightService().hasAccessLevel(
+                    "programming", with(any(String.class)), with(any(String.class)), 
+                    with(any(XWikiContext.class)));
+                will(returnValue(false));
             }
         });
     }
@@ -176,7 +181,7 @@ public class DownloadActionTest extends AbstractBridgedComponentTestCase
     }
 
     @Test(expected = XWikiException.class)
-    public void testDownloadMissingFile() throws XWikiException, IOException
+    public void testDownloadMissingFile() throws XWikiException
     {
         setRequestExpectations("/xwiki/bin/download/space/page/nofile.txt", null, null, null, -1l);
         this.action.render(getContext());
@@ -248,7 +253,7 @@ public class DownloadActionTest extends AbstractBridgedComponentTestCase
     }
 
     @Test(expected = XWikiException.class)
-    public void testDownloadWithIncompletePath() throws XWikiException, IOException
+    public void testDownloadWithIncompletePath() throws XWikiException
     {
         setRequestExpectations("/xwiki/bin/download/", null, null, null, -1l);
         this.action.render(getContext());

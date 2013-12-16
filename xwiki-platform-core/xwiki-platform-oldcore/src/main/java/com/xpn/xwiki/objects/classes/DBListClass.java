@@ -30,6 +30,9 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.ecs.xhtml.input;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.xwiki.model.EntityType;
+import org.xwiki.query.Query;
+import org.xwiki.query.QueryManager;
 
 import com.xpn.xwiki.XWiki;
 import com.xpn.xwiki.XWikiContext;
@@ -38,6 +41,7 @@ import com.xpn.xwiki.objects.BaseCollection;
 import com.xpn.xwiki.objects.BaseProperty;
 import com.xpn.xwiki.objects.ListProperty;
 import com.xpn.xwiki.objects.meta.PropertyMetaClass;
+import com.xpn.xwiki.web.Utils;
 
 public class DBListClass extends ListClass
 {
@@ -97,14 +101,21 @@ public class DBListClass extends ListClass
     {
         List<ListItem> list = getCachedDBList(context);
         if (list == null) {
-            XWiki xwiki = context.getWiki();
-            String query = getQuery(context);
+            String hqlQuery = getQuery(context);
 
-            if (query == null) {
+            if (hqlQuery == null) {
                 list = new ArrayList<ListItem>();
             } else {
                 try {
-                    list = makeList(xwiki.search(query, context));
+                    // We need the query manager
+                    QueryManager queryManager = Utils.getComponent(QueryManager.class);
+                    // We create the query
+                    Query query = queryManager.createQuery(hqlQuery, Query.HQL);
+                    // The DBlist may come from an other wiki
+                    String wikiName = getReference().extractReference(EntityType.WIKI).getName();
+                    query.setWiki(wikiName);
+                    // We execute the query to create the list of values.
+                    list = makeList(query.execute());
                 } catch (Exception e) {
                     LOGGER.error("Failed to get the list", e);
                     list = new ArrayList<ListItem>();
@@ -367,24 +378,26 @@ public class DBListClass extends ListClass
     }
 
     // return first or second column from user query
-    public String returnCol(String hibquery, boolean first)
+    public String returnCol(String hqlQuery, boolean first)
     {
         String firstCol = "-", secondCol = "-";
+        if (StringUtils.isEmpty(hqlQuery)) {
+            return firstCol;
+        }
 
-        int fromIndx = hibquery.indexOf("from");
+        int fromIndx = hqlQuery.toLowerCase().indexOf("from");
 
         if (fromIndx > 0) {
-            String firstPart = hibquery.substring(0, fromIndx);
-            firstPart.replaceAll("\\s+", " ");
-            int comIndx = hibquery.indexOf(",");
+            String beforeFrom = hqlQuery.substring(0, fromIndx).replaceAll("\\s+", " ");
+            int commaIndex = beforeFrom.indexOf(",");
 
-            // there are more than one columns to select- take the second one (the value)
-            if (comIndx > 0 && comIndx < fromIndx) {
-                StringTokenizer st = new StringTokenizer(firstPart, " ,()", true);
+            // There are two columns selected
+            if (commaIndex > 0) {
+                StringTokenizer st = new StringTokenizer(beforeFrom, " ,()", true);
                 ArrayList<String> words = new ArrayList<String>();
 
                 while (st.hasMoreTokens()) {
-                    words.add(st.nextToken().toLowerCase());
+                    words.add(st.nextToken());
                 }
 
                 int comma = words.indexOf(",") - 1;
@@ -409,22 +422,9 @@ public class DBListClass extends ListClass
                     secondCol = words.get(comma).toString().trim();
                 }
             }
-            // has only one column
+            // Only one column selected
             else {
-                int i = fromIndx - 1;
-                while (firstPart.charAt(i) == ' ') {
-                    --i;
-                }
-                String col = " ";
-                while (firstPart.charAt(i) != ' ') {
-                    col += firstPart.charAt(i);
-                    --i;
-                }
-                String reverse = " ";
-                for (i = (col.length() - 1); i >= 0; --i) {
-                    reverse += col.charAt(i);
-                }
-                firstCol = reverse.trim();
+                firstCol = StringUtils.substringAfterLast(beforeFrom.trim(), " ");
             }
         }
         if (first == true) {
@@ -516,8 +516,8 @@ public class DBListClass extends ListClass
                 }
 
                 String script =
-                    "\"" + path + "?xpage=suggest&amp;classname=" + classname + "&amp;fieldname=" + fieldname
-                        + "&amp;firCol=" + firstCol + "&amp;secCol=" + secondCol + "&amp;\"";
+                    "\"" + path + "?xpage=suggest&classname=" + classname + "&fieldname=" + fieldname + "&firCol="
+                        + firstCol + "&secCol=" + secondCol + "&\"";
                 String varname = "\"input\"";
                 String seps = "\"" + this.getSeparators() + "\"";
                 if (isMultiSelect()) {
