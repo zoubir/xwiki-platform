@@ -1,17 +1,17 @@
 .runTransformations
 .#-----------------------------------------------------
 .input|xwiki/2.0
-.# Verify ruby macro does not fail with null content
+.# Verify lua macro does not fail with null content
 .#-----------------------------------------------------
-{{ruby/}}{{ruby}}{{/ruby}}
+{{lua/}}{{lua}}{{/lua}}
 .#-----------------------------------------------------
 .expect|event/1.0
 .#-----------------------------------------------------
 beginDocument
 beginParagraph
-beginMacroMarkerInline [ruby] []
-endMacroMarkerInline [ruby] []
-beginMacroMarkerInline [ruby] [] []
-endMacroMarkerInline [ruby] [] []
+beginMacroMarkerInline [lua] []
+endMacroMarkerInline [lua] []
+beginMacroMarkerInline [lua] [] []
+endMacroMarkerInline [lua] [] []
 endParagraph
 endDocument

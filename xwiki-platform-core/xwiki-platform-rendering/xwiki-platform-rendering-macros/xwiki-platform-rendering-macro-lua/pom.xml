@@ -27,7 +27,7 @@
   <parent>
     <groupId>org.xwiki.platform</groupId>  
     <artifactId>xwiki-platform-rendering-macros</artifactId>
-    <version>5.0-SNAPSHOT</version>
+    <version>5.4-SNAPSHOT</version>
   </parent>
   <artifactId>xwiki-platform-rendering-macro-lua</artifactId>
   <name>XWiki Platform - Rendering - Macro - LUA</name>
@@ -41,7 +41,7 @@
     <dependency>
       <groupId>org.luaj</groupId>
       <artifactId>luaj-jse</artifactId>
-      <version>3.0-alpha2</version>
+      <version>3.0-beta1</version>
     </dependency>
 
     <!-- Testing dependencies -->
