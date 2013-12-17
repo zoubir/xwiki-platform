@@ -297,10 +297,6 @@ public class ConfluenceInputWikiStream extends AbstractBeanInputWikiStream<Confl
                 }
             }
         }
-        if (pageProperties.containsKey(ConfluenceXMLPackage.KEY_PAGE_REVISION)) {
-            documentLocaleParameters.put(WikiDocumentFilter.PARAMETER_LASTREVISION,
-                pageProperties.getString(ConfluenceXMLPackage.KEY_PAGE_REVISION));
-        }
 
         // > WikiDocumentLocale
         proxyFilter.beginWikiDocumentLocale(locale, documentLocaleParameters);
