@@ -71,7 +71,7 @@ public class DefaultWikiCreator implements WikiCreator
             xwiki.getStore().createWiki(wikiId, context);
         } catch (Exception e) {
             logger.error(e.getMessage());
-            throw new WikiManagerException(localizationManager.getTranslationPlain("wiki.databasecreation"));
+            throw new WikiManagerException(localizationManager.getTranslationPlain("wiki.databasecreation", wikiId), e);
         }
 
         // Init database/schema
@@ -79,7 +79,7 @@ public class DefaultWikiCreator implements WikiCreator
             xwiki.updateDatabase(wikiId, true, true, context);
         } catch (Exception e) {
             logger.error(e.getMessage());
-            throw new WikiManagerException(localizationManager.getTranslationPlain("wiki.databaseupdate"));
+            throw new WikiManagerException(localizationManager.getTranslationPlain("wiki.databaseupdate", wikiId), e);
         }
 
         return createDescriptor(wikiId, wikiAlias);
