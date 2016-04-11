@@ -81,9 +81,7 @@ public class DBListClass extends ListClass
             // were empty strings). This means we need to check for NULL and ignore NULL entries
             // from the list.
             if (item != null) {
-                if (item instanceof String) {
-                    result.add(new ListItem((String) item));
-                } else if (item instanceof Number) {
+                if (item instanceof String || item instanceof Number) {
                     result.add(new ListItem(item.toString()));
                 } else {
                     Object[] res = (Object[]) item;
@@ -114,7 +112,14 @@ public class DBListClass extends ListClass
     {
         List<ListItem> list = getCachedDBList(context);
         if (list == null) {
-            String hqlQuery = getQuery(context);
+            String hqlQuery = null;
+            try {
+                hqlQuery = getQuery(context);
+            } catch (XWikiException e) {
+                LOGGER.error("Failed to get the query", e);
+                list = new ArrayList<ListItem>();
+                return list;
+            }
 
             if (hqlQuery == null) {
                 list = new ArrayList<ListItem>();
@@ -202,7 +207,7 @@ public class DBListClass extends ListClass
      * @param context The current {@link XWikiContext context}.
      * @return The HQL query corresponding to this property.
      */
-    public String getQuery(XWikiContext context)
+    public String getQuery(XWikiContext context) throws XWikiException
     {
         // First, get the hql query entered by the user.
         String sql = getSql();
@@ -285,16 +290,10 @@ public class DBListClass extends ListClass
                     select.append("doc." + idField);
                 } else {
                     select.append("idprop.value");
-                    whereStatements.add("obj.id=idprop.id.id and idprop.id.name='" + idField + "'");
                     // Get the from statements according to the type of property
-                    try {
-                        PropertyClass pc = (PropertyClass) context.getWiki().getDocument(classname, context).getXClass()
-                                .get(idField);
-                        String classType = (pc == null) ? "StringProperty" : pc.newProperty().getClass().getName();
-                        fromStatements.add(classType + " as idprop");
-                    } catch (XWikiException e) {
-                        e.printStackTrace();
-                    }
+                    String classType = getPropertyType(classname, idField, context);
+                    fromStatements.add(classType + " as idprop");
+                    whereStatements.add("obj.id=idprop.id.id and idprop.id.name='" + idField + "'");
                 }
 
                 // If specified, add the second column to the query.
@@ -305,17 +304,10 @@ public class DBListClass extends ListClass
                         select.append(", doc." + valueField);
                     } else {
                         select.append(", valueprop.value");
-                        whereStatements.add("obj.id=valueprop.id.id and valueprop.id.name='" + valueField + "'");
                         // Get the from statements according to the type of property
-                        try {
-                            PropertyClass pc = (PropertyClass) context.getWiki().getDocument(classname,
-                                    context).getXClass()
-                                    .get(valueField);
-                            String classType = (pc == null) ? "StringProperty" : pc.newProperty().getClass().getName();
-                            fromStatements.add(classType + "  as valueprop");
-                        } catch (XWikiException e) {
-                            e.printStackTrace();
-                        }
+                        String classType = getPropertyType(classname, valueField, context);
+                        fromStatements.add(classType + " as valueprop");
+                        whereStatements.add("obj.id=valueprop.id.id and valueprop.id.name='" + valueField + "'");
                     }
                 }
                 // Let's create the complete query
@@ -613,5 +605,16 @@ public class DBListClass extends ListClass
         } else {
             buffer.append(getDisplayValue(prop.getValue(), name, map, context));
         }
+    }
+
+    private String getPropertyType(String className, String propertyName, XWikiContext context) throws XWikiException
+    {
+        PropertyClass pc = null;
+        try {
+            pc = (PropertyClass) context.getWiki().getDocument(className, context).getXClass().get(propertyName);
+        } catch (XWikiException e) {
+            LOGGER.error("Failed to get property [{}] for document [{}]", propertyName, className, e);
+        }
+        return pc.newProperty().getClass().getName();
     }
 }
